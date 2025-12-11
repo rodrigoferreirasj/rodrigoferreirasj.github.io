@@ -20,13 +20,38 @@ export interface Question {
   horizon: HorizonLevel; // Added Horizon H0-H4
 }
 
+export interface DilemmaOption {
+  text: string;
+  value: number; // 1 (Low), 3 (Med), 5 (High)
+}
+
+export interface Dilemma {
+  id: string;
+  title: string;
+  scenario: string;
+  block: string;    // To map to scoring
+  axis: string;     // To map to scoring
+  category: string; // To map to scoring
+  role: string;     // To map to scoring
+  options: DilemmaOption[];
+}
+
+export interface DescriptiveQuestion {
+  id: number;
+  theme: string;
+  category: string;
+  text: string;
+}
+
 export interface UserProfile {
   name: string;
   email: string;
   level: LeadershipLevel;
 }
 
-export type Answers = Record<number, number>;
+// Answers can now hold number IDs (questions) or string IDs (dilemmas)
+export type Answers = Record<number | string, number>;
+export type TextAnswers = Record<number, string>;
 
 export interface RoleResult {
   score: number;
