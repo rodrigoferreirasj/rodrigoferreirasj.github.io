@@ -5,6 +5,7 @@ import Assessment from './components/Assessment';
 import Results from './components/Results';
 import { LeadershipLevel, UserProfile, Answers, Question, TextAnswers } from './types';
 import { questions as allQuestions } from './data/questions';
+import { questions360 } from './data/questions360';
 import { dilemmas } from './data/dilemmas';
 import { calculateScores } from './services/scoringService';
 
@@ -50,9 +51,14 @@ const App: React.FC = () => {
     localStorage.setItem('app_text_answers', JSON.stringify(textAnswers));
   }, [textAnswers]);
 
-  // Logic: Filter questions based on Level.
+  // Logic: Filter questions based on Level OR use 360 Questions
   const filteredQuestions = useMemo(() => {
     if (!profile) return [];
+    
+    if (profile.is360) {
+        return questions360;
+    }
+
     return allQuestions.filter(q => 
         q.level === LeadershipLevel.Comum || q.level === profile.level
     );
@@ -62,6 +68,9 @@ const App: React.FC = () => {
 
   const handleInfoComplete = (userProfile: UserProfile) => {
     setProfile(userProfile);
+    // Clear previous answers if switching users/modes
+    setAnswers({});
+    setTextAnswers({});
     setStep('assessment');
   };
 
@@ -103,8 +112,12 @@ const App: React.FC = () => {
           <div className="flex items-center gap-4">
              {profile && (
                  <div className="hidden sm:flex items-center gap-2">
-                    <span className="text-xs text-gray-400">Logado como</span>
-                    <span className="text-sm font-bold">{profile.name}</span>
+                    <span className="text-xs text-gray-400">
+                        {profile.is360 ? 'Avaliando:' : 'Logado como'}
+                    </span>
+                    <span className="text-sm font-bold">
+                        {profile.is360 ? profile.targetLeaderName : profile.name}
+                    </span>
                  </div>
              )}
             <div className="h-8 w-[1px] bg-gray-700 hidden sm:block"></div>
@@ -125,12 +138,16 @@ const App: React.FC = () => {
                 dilemmas={dilemmas}
                 onComplete={handleAssessmentComplete}
                 onBack={() => setStep('info')}
+                is360={profile?.is360}
             />
         )}
         {step === 'results' && profile && scores && (
             <Results 
               results={scores} 
-              profile={profile} 
+              profile={{
+                  ...profile,
+                  name: profile.is360 ? (profile.targetLeaderName || profile.name) : profile.name // Ensure results show target name in 360
+              }}
               textAnswers={textAnswers} 
               answers={answers} // Pass raw answers to check dilemmas
               dilemmas={dilemmas} // Pass dilemmas definition

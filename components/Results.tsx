@@ -309,24 +309,28 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
     });
 
     // 6. Qualitative Questions (Text Answers)
-    descriptiveQuestions.forEach(q => {
-        rows.push(['REFLEXAO', q.category, textAnswers[q.id] || 'Não respondido', q.text]);
-    });
+    if (!profile.is360) {
+        descriptiveQuestions.forEach(q => {
+            rows.push(['REFLEXAO', q.category, textAnswers[q.id] || 'Não respondido', q.text]);
+        });
+    }
 
     // 7. Dilemmas (Checks)
-    dilemmas.forEach(d => {
-        const score = answers[d.id];
-        const selectedOption = d.options.find(o => o.value === score);
-        rows.push([
-            'DILEMA', 
-            d.title, 
-            score, 
-            `Cenário: ${d.scenario} | Escolha: ${selectedOption?.text || ''}`
-        ]);
-        if (score === 1 && d.lowScoreRecommendation) {
-             rows.push(['RECOMENDACAO', d.title, 'BAIXA MATURIDADE', d.lowScoreRecommendation]);
-        }
-    });
+    if (!profile.is360) {
+        dilemmas.forEach(d => {
+            const score = answers[d.id];
+            const selectedOption = d.options.find(o => o.value === score);
+            rows.push([
+                'DILEMA', 
+                d.title, 
+                score, 
+                `Cenário: ${d.scenario} | Escolha: ${selectedOption?.text || ''}`
+            ]);
+            if (score === 1 && d.lowScoreRecommendation) {
+                rows.push(['RECOMENDACAO', d.title, 'BAIXA MATURIDADE', d.lowScoreRecommendation]);
+            }
+        });
+    }
 
     // 8. Alerts
     roleValidation.alerts.forEach(alert => {
@@ -536,8 +540,8 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
           </div>
         </div>
 
-        {/* 4. Recommendations for Low Score Dilemmas */}
-        {lowScoreDilemmas.length > 0 && (
+        {/* 4. Recommendations for Low Score Dilemmas (Hidden in 360) */}
+        {!profile.is360 && lowScoreDilemmas.length > 0 && (
           <div className={`${styles.bgCard} border rounded-xl p-6 shadow-lg border-l-4 border-l-orange-500`}>
              <h3 className={`text-xl font-bold mb-6 flex items-center gap-2 ${styles.textPrimary}`}>
                 <span className="material-symbols-outlined text-orange-500">school</span>
@@ -736,30 +740,32 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
             </div>
         </div>
 
-        {/* 8. Qualitative Analysis (Text Answers) - UPDATED TO SHOW ALL + PLACEHOLDERS */}
-        <div className={`${styles.bgCard} border rounded-xl p-6 shadow-lg`}>
-            <h3 className={`text-xl font-bold mb-6 flex items-center gap-2 ${styles.textPrimary}`}>
-                <span className="material-symbols-outlined text-gray-400">edit_note</span>
-                Suas Reflexões
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {descriptiveQuestions.map((question) => {
-                    const answer = textAnswers[question.id];
-                    return (
-                        <div key={question.id} className={`p-4 rounded-lg border h-full ${styles.bgSub} ${styles.border}`}>
-                            <h4 className="text-sm font-bold text-primary mb-2 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-base">chat_bubble</span>
-                                {question.theme} • {question.category}
-                            </h4>
-                            <p className={`font-medium mb-3 text-sm border-b pb-2 ${styles.textPrimary} ${printMode ? 'border-gray-300' : 'border-gray-700'}`}>{question.text}</p>
-                            <p className={`text-sm italic ${answer ? styles.textSecondary : 'text-gray-400/50'}`}>
-                                "{answer || 'Não respondido'}"
-                            </p>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
+        {/* 8. Qualitative Analysis (Text Answers) - UPDATED TO SHOW ALL + PLACEHOLDERS (Hidden in 360) */}
+        {!profile.is360 && (
+          <div className={`${styles.bgCard} border rounded-xl p-6 shadow-lg`}>
+              <h3 className={`text-xl font-bold mb-6 flex items-center gap-2 ${styles.textPrimary}`}>
+                  <span className="material-symbols-outlined text-gray-400">edit_note</span>
+                  Suas Reflexões
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {descriptiveQuestions.map((question) => {
+                      const answer = textAnswers[question.id];
+                      return (
+                          <div key={question.id} className={`p-4 rounded-lg border h-full ${styles.bgSub} ${styles.border}`}>
+                              <h4 className="text-sm font-bold text-primary mb-2 flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-base">chat_bubble</span>
+                                  {question.theme} • {question.category}
+                              </h4>
+                              <p className={`font-medium mb-3 text-sm border-b pb-2 ${styles.textPrimary} ${printMode ? 'border-gray-300' : 'border-gray-700'}`}>{question.text}</p>
+                              <p className={`text-sm italic ${answer ? styles.textSecondary : 'text-gray-400/50'}`}>
+                                  "{answer || 'Não respondido'}"
+                              </p>
+                          </div>
+                      );
+                  })}
+              </div>
+          </div>
+        )}
 
       </div>
 

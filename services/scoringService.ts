@@ -81,16 +81,15 @@ export const calculateScores = (
     roleValidationStats[r] = { sum: 0, count: 0 };
   });
 
-  // Helper to process a value into stats
-  const processStat = (val: number, weight: number, axis: string, role: string, horizon: number, block: string, category: string) => {
+  const processStat = (val: number, weight: number, axis: string, roles: string[], horizons: number[], block: string, categories: string[]) => {
     const weightedVal = val * weight;
     const maxWeightedVal = 5 * weight;
 
-    // Global
+    // Global (Count Once per question)
     globalWeightedSum += weightedVal;
     globalMaxSum += maxWeightedVal;
 
-    // Axis (Handle "Ambos")
+    // Axis (Handle "Ambos") (Count Once per question)
     if (axis === 'Ambos') {
       axisStats['Pessoas'].sum += val;
       axisStats['Pessoas'].count++;
@@ -101,38 +100,45 @@ export const calculateScores = (
       axisStats[axis].count++;
     }
 
-    // Role (General Scoring)
-    if (roleStats[role]) {
-      roleStats[role].sum += val;
-      roleStats[role].count++;
-      // Role Horizons
-      const h = horizon ?? 0;
-      if (roleStats[role].horizons[h]) {
-        roleStats[role].horizons[h].sum += val;
-        roleStats[role].horizons[h].count++;
-      }
-    }
+    // Role (Iterate all applied roles)
+    roles.forEach(role => {
+        if (roleStats[role]) {
+            roleStats[role].sum += val;
+            roleStats[role].count++;
+            // Role Horizons (Iterate all horizons)
+            horizons.forEach(h => {
+                if (roleStats[role].horizons[h]) {
+                    roleStats[role].horizons[h].sum += val;
+                    roleStats[role].horizons[h].count++;
+                }
+            });
+        }
+    });
 
-    // Horizon Global
-    if (horizon !== undefined) {
+    // Horizon Global (Iterate all horizons)
+    horizons.forEach(horizon => {
        if (!horizonStats[horizon]) horizonStats[horizon] = { sum: 0, count: 0 };
        horizonStats[horizon].sum += val;
        horizonStats[horizon].count++;
-    }
+    });
 
-    // Blocks & Categories
+    // Blocks (Count Once per question typically, but accumulate horizons)
     if (!blockStats[block]) {
       blockStats[block] = { sum: 0, count: 0, horizonCounts: {0:0, 1:0, 2:0, 3:0, 4:0} };
     }
     blockStats[block].sum += val;
     blockStats[block].count++;
-    if (horizon !== undefined) {
+    
+    horizons.forEach(horizon => {
         blockStats[block].horizonCounts[horizon] = (blockStats[block].horizonCounts[horizon] || 0) + 1;
-    }
+    });
 
-    if (!categoryStats[category]) categoryStats[category] = { sum: 0, count: 0 };
-    categoryStats[category].sum += val;
-    categoryStats[category].count++;
+    // Categories (Iterate all categories)
+    categories.forEach(category => {
+        if (!categoryStats[category]) categoryStats[category] = { sum: 0, count: 0 };
+        categoryStats[category].sum += val;
+        categoryStats[category].count++;
+    });
   };
 
   // 1. Process Standard Questions
@@ -145,13 +151,20 @@ export const calculateScores = (
       
       const weight = getWeight(userLevel, q.horizon);
       
-      processStat(val, weight, q.axis, q.role, q.horizon, q.block, q.category);
+      // Determine arrays (fallback for single-tag questions)
+      const qRoles = q.roles && q.roles.length > 0 ? q.roles : [q.role];
+      const qCats = q.categories && q.categories.length > 0 ? q.categories : [q.category];
+      const qHorizons = q.horizons && q.horizons.length > 0 ? q.horizons : [q.horizon];
+
+      processStat(val, weight, q.axis, qRoles, qHorizons, q.block, qCats);
 
       // Collect for Dynamic Cluster Consistency Check
-      if (!categoryValidationStats[q.category]) {
-          categoryValidationStats[q.category] = [];
-      }
-      categoryValidationStats[q.category].push(val);
+      qCats.forEach(cat => {
+          if (!categoryValidationStats[cat]) {
+              categoryValidationStats[cat] = [];
+          }
+          categoryValidationStats[cat].push(val);
+      });
     }
   });
 
@@ -162,7 +175,7 @@ export const calculateScores = (
       const weight = 1.0; 
 
       // Standard processing for Global/Axis/Horizon scores
-      processStat(val, weight, d.axis, d.role, d.horizon, d.block, d.category);
+      processStat(val, weight, d.axis, [d.role], [d.horizon], d.block, [d.category]);
 
       // --- VALIDATION LOGIC START ---
       // Accumulate for Validation (Primary Role)

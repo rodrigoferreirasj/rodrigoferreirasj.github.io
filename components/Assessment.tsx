@@ -7,11 +7,12 @@ interface Props {
   dilemmas: Dilemma[];
   onComplete: (answers: Answers, textAnswers: TextAnswers) => void;
   onBack: () => void;
+  is360?: boolean;
 }
 
 type Phase = 'questions' | 'dilemmas' | 'descriptive';
 
-const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack }) => {
+const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, is360 = false }) => {
   const [phase, setPhase] = useState<Phase>('questions');
   
   // Randomized Lists State
@@ -91,9 +92,14 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack }
       if (currentQIndex < shuffledQuestions.length - 1) {
         setCurrentQIndex(prev => prev + 1);
       } else {
-        // Transition to Dilemmas
-        setPhase('dilemmas');
-        setCurrentDIndex(0);
+        // Change logic for 360: Skip dilemmas and descriptive
+        if (is360) {
+            onComplete(answers, textAnswers);
+        } else {
+            // Transition to Dilemmas
+            setPhase('dilemmas');
+            setCurrentDIndex(0);
+        }
       }
     } else if (phase === 'dilemmas') {
       if (currentDIndex < shuffledDilemmas.length - 1) {
@@ -144,7 +150,10 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack }
 
   // --- Rendering Calculations ---
   
-  const totalSteps = shuffledQuestions.length + shuffledDilemmas.length + shuffledDescriptive.length;
+  const totalSteps = is360 
+    ? shuffledQuestions.length 
+    : shuffledQuestions.length + shuffledDilemmas.length + shuffledDescriptive.length;
+
   let currentStepGlobal = 0;
   if (phase === 'questions') currentStepGlobal = currentQIndex;
   else if (phase === 'dilemmas') currentStepGlobal = shuffledQuestions.length + currentDIndex;

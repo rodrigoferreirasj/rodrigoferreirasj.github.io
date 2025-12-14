@@ -18,7 +18,11 @@ export interface Question {
   category: string;
   role: string;
   inverted: boolean;
-  horizon: HorizonLevel; // Added Horizon H0-H4
+  horizon: HorizonLevel; 
+  // New fields for 360 multi-tagging
+  categories?: string[];
+  roles?: string[];
+  horizons?: HorizonLevel[];
 }
 
 export interface DilemmaOption {
@@ -50,10 +54,13 @@ export interface DescriptiveQuestion {
 export interface UserProfile {
   name: string;
   email: string;
-  company: string;   // New Field
-  role: string;      // New Field
-  whatsapp: string;  // New Field
+  company: string;   
+  role: string;      
+  whatsapp: string;  
   level: LeadershipLevel;
+  // New 360 fields
+  is360?: boolean;
+  targetLeaderName?: string;
 }
 
 // Answers can now hold number IDs (questions) or string IDs (dilemmas)

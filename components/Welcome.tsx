@@ -54,7 +54,7 @@ const Welcome: React.FC<Props> = ({ onStart }) => {
                         </div>
                         <div>
                             <p className="text-sm font-bold text-white">Análise de Perfil</p>
-                            <p className="text-xs text-slate-300">IA analisando 45 pontos de dados...</p>
+                            <p className="text-xs text-slate-300">Este teste avalia mais de 120 aspectos críticos da liderança moderna</p>
                         </div>
                     </div>
                 </div>
