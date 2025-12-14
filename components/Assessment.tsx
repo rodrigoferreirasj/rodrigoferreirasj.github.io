@@ -1,16 +1,18 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Question, Answers, Dilemma, DilemmaOption, TextAnswers, DescriptiveQuestion } from '../types';
 import { descriptiveQuestions } from '../data/descriptive';
 
 interface Props {
   questions: Question[];
   dilemmas: Dilemma[];
-  onComplete: (answers: Answers, textAnswers: TextAnswers) => void;
+  onComplete: (answers: Answers, textAnswers: TextAnswers, totalTime: number) => void;
   onBack: () => void;
   is360?: boolean;
 }
 
 type Phase = 'questions' | 'dilemmas' | 'descriptive';
+
+const TIME_LIMIT_SECONDS = 10;
 
 const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, is360 = false }) => {
   const [phase, setPhase] = useState<Phase>('questions');
@@ -29,15 +31,21 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
   const [textAnswers, setTextAnswers] = useState<TextAnswers>({});
   const [direction, setDirection] = useState<'next' | 'prev'>('next');
   
+  // Lock state to prevent double clicks/race conditions
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // --- TIME & OMISSION LOGIC ---
+  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT_SECONDS);
+  const [totalTimeTaken, setTotalTimeTaken] = useState(0); // Accumulator for total time
+  const [consecutiveOmissions, setConsecutiveOmissions] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  // Timer ref not strictly needed with the split-effect approach, but kept for cleanup safety if needed
+  const timerRef = useRef<number | null>(null);
+
   // Initialize and Shuffle Everything once on mount
   useEffect(() => {
-    // 1. Shuffle Scale Questions
     setShuffledQuestions([...questions].sort(() => Math.random() - 0.5));
-    
-    // 2. Shuffle Dilemmas (Scenarios)
     setShuffledDilemmas([...dilemmas].sort(() => Math.random() - 0.5));
-
-    // 3. Shuffle Descriptive Questions
     setShuffledDescriptive([...descriptiveQuestions].sort(() => Math.random() - 0.5));
   }, [questions, dilemmas]);
 
@@ -46,26 +54,95 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
   const currentDilemma = shuffledDilemmas[currentDIndex];
   const currentDescriptive = shuffledDescriptive[currentDescIndex];
 
-  // Shuffle Dilemma Options (randomize options within the scenario)
+  // EFFECT 1: RESET TIMER ON QUESTION CHANGE
+  useEffect(() => {
+      // Whenever the index or phase changes, reset the clock to 10s
+      setTimeLeft(TIME_LIMIT_SECONDS);
+  }, [currentQIndex, currentDIndex, phase]);
+
+  // EFFECT 2: COUNTDOWN LOGIC (TICK)
+  useEffect(() => {
+      // Stop conditions
+      if (
+          isPaused || 
+          isTransitioning || 
+          phase === 'descriptive' ||
+          (phase === 'questions' && !currentQuestion) ||
+          (phase === 'dilemmas' && !currentDilemma)
+      ) {
+          return;
+      }
+
+      // If time is up, trigger timeout logic
+      if (timeLeft === 0) {
+          handleTimeout();
+          return;
+      }
+
+      // Tick down
+      const tick = window.setTimeout(() => {
+          setTimeLeft((prev) => prev - 1);
+      }, 1000);
+
+      return () => window.clearTimeout(tick);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, isPaused, isTransitioning, phase, currentQuestion, currentDilemma]); 
+  // Dependency on 'timeLeft' ensures the effect re-runs every second, creating the loop.
+
+  const handleTimeout = () => {
+      // Determine ID
+      const id = phase === 'questions' ? currentQuestion?.id : currentDilemma?.id;
+      if (!id) return;
+
+      // Add full duration to total time (since user used all 10s)
+      setTotalTimeTaken(prev => prev + TIME_LIMIT_SECONDS);
+
+      // Register Omission (null)
+      const newAnswers = { ...answers, [id]: null };
+      setAnswers(newAnswers);
+
+      const newConsecutive = consecutiveOmissions + 1;
+      setConsecutiveOmissions(newConsecutive);
+
+      // Check for forced pause
+      if (newConsecutive >= 3) {
+          setIsPaused(true);
+      } else {
+          // Auto-advance
+          handleNext(newAnswers, true); // true = automated advance
+      }
+  };
+
+  const handleResume = () => {
+      setConsecutiveOmissions(0);
+      setIsPaused(false);
+      // Logic to restart current question timer happens automatically via useEffect dependency on isPaused
+  };
+
   const shuffledOptions = useMemo(() => {
     if (!currentDilemma) return [];
     return [...currentDilemma.options].sort(() => Math.random() - 0.5);
   }, [currentDilemma?.id]);
 
   if (shuffledQuestions.length === 0 || shuffledDilemmas.length === 0 || shuffledDescriptive.length === 0) {
-      return <div className="text-white text-center mt-20">Carregando avaliação...</div>;
+      return <div className="text-white text-center mt-20 animate-pulse">Carregando avaliação...</div>;
   }
 
   // --- Handlers for Questions Phase ---
 
   const handleQuestionAnswer = (score: number) => {
-    if (!currentQuestion) return;
+    if (!currentQuestion || isTransitioning || isPaused) return;
     
-    // Create the new answers object immediately
+    // Reset Omissions count on valid answer
+    setConsecutiveOmissions(0);
+
+    // Track time spent (10 - timeLeft)
+    const timeSpent = TIME_LIMIT_SECONDS - timeLeft;
+    setTotalTimeTaken(prev => prev + timeSpent);
+
     const newAnswers = { ...answers, [currentQuestion.id]: score };
     setAnswers(newAnswers);
 
-    // Pass the FRESH answers to handleNext via the timeout
     setTimeout(() => {
         handleNext(newAnswers);
     }, 250);
@@ -74,7 +151,14 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
   // --- Handlers for Dilemmas Phase ---
 
   const handleDilemmaAnswer = (score: number) => {
-    if (!currentDilemma) return;
+    if (!currentDilemma || isTransitioning || isPaused) return;
+    
+    setConsecutiveOmissions(0);
+
+    // Track time spent
+    const timeSpent = TIME_LIMIT_SECONDS - timeLeft;
+    setTotalTimeTaken(prev => prev + timeSpent);
+    
     const newAnswers = { ...answers, [currentDilemma.id]: score };
     setAnswers(newAnswers);
     setTimeout(() => {
@@ -91,8 +175,12 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
 
   // --- Navigation Logic ---
 
-  // Accept optional updatedAnswers to ensure we use the latest state inside timeouts
-  const handleNext = (updatedAnswers?: Answers) => {
+  const handleNext = (updatedAnswers?: Answers, autoAdvance = false) => {
+    if (isTransitioning && !autoAdvance) return; 
+    
+    setIsTransitioning(true);
+    setTimeout(() => setIsTransitioning(false), 500);
+
     const currentAnswersState = updatedAnswers || answers;
     setDirection('next');
     
@@ -100,11 +188,9 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
       if (currentQIndex < shuffledQuestions.length - 1) {
         setCurrentQIndex(prev => prev + 1);
       } else {
-        // Change logic for 360: Skip dilemmas and descriptive
         if (is360) {
-            onComplete(currentAnswersState, textAnswers);
+            onComplete(currentAnswersState, textAnswers, totalTimeTaken);
         } else {
-            // Transition to Dilemmas
             setPhase('dilemmas');
             setCurrentDIndex(0);
         }
@@ -113,7 +199,6 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
       if (currentDIndex < shuffledDilemmas.length - 1) {
         setCurrentDIndex(prev => prev + 1);
       } else {
-        // Transition to Descriptive
         setPhase('descriptive');
         setCurrentDescIndex(0);
       }
@@ -122,19 +207,23 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
       if (currentDescIndex < shuffledDescriptive.length - 1) {
         setCurrentDescIndex(prev => prev + 1);
       } else {
-        onComplete(currentAnswersState, textAnswers);
+        onComplete(currentAnswersState, textAnswers, totalTimeTaken);
       }
     }
   };
 
   const handlePrev = () => {
+    if (isTransitioning || isPaused) return;
+    
+    setIsTransitioning(true);
+    setTimeout(() => setIsTransitioning(false), 500);
+    
     setDirection('prev');
 
     if (phase === 'descriptive') {
       if (currentDescIndex > 0) {
         setCurrentDescIndex(prev => prev - 1);
       } else {
-        // Back to Dilemmas
         setPhase('dilemmas');
         setCurrentDIndex(shuffledDilemmas.length - 1);
       }
@@ -142,12 +231,10 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
       if (currentDIndex > 0) {
         setCurrentDIndex(prev => prev - 1);
       } else {
-        // Back to Questions
         setPhase('questions');
         setCurrentQIndex(shuffledQuestions.length - 1);
       }
     } else {
-      // Questions Phase
       if (currentQIndex > 0) {
         setCurrentQIndex(prev => prev - 1);
       } else {
@@ -169,10 +256,13 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
 
   const progress = ((currentStepGlobal + 1) / totalSteps) * 100;
 
-  // Guard against undefined during render
   if (phase === 'questions' && !currentQuestion) {
-      // Fallback in case of index sync issues, usually shouldn't happen with the fix above
-      return <div className="text-white text-center mt-20">Processando respostas...</div>;
+      return (
+          <div className="flex flex-col items-center justify-center mt-20 gap-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-primary"></div>
+              <span className="text-white text-sm">Sincronizando...</span>
+          </div>
+      );
   }
 
   const currentAnswer = phase === 'questions' && currentQuestion
@@ -187,6 +277,30 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
       <div className="fixed top-20 left-10 w-64 h-64 bg-primary/10 rounded-full blur-[80px] pointer-events-none"></div>
       <div className="fixed bottom-10 right-10 w-96 h-96 bg-purple-600/10 rounded-full blur-[100px] pointer-events-none"></div>
 
+      {/* PAUSE MODAL */}
+      {isPaused && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in px-4">
+              <div className="bg-surface-dark border border-gray-700 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl">
+                  <div className="size-16 rounded-full bg-yellow-500/20 text-yellow-500 flex items-center justify-center mx-auto mb-6">
+                      <span className="material-symbols-outlined text-3xl">hourglass_pause</span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-4">Pausa Automática</h3>
+                  <p className="text-gray-300 mb-8 leading-relaxed">
+                      Percebemos que você não respondeu algumas perguntas seguidas. 
+                      Isso é normal quando há pressão ou dúvida. 
+                      <br/><br/>
+                      Respire fundo e retome quando estiver pronto para decidir com clareza.
+                  </p>
+                  <button 
+                      onClick={handleResume}
+                      className="w-full py-4 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl transition-all"
+                  >
+                      Estou pronto para continuar
+                  </button>
+              </div>
+          </div>
+      )}
+
       {/* Progress Section */}
       <div className="flex flex-col gap-3 relative z-20">
         <div className="flex justify-between items-end">
@@ -195,16 +309,38 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
               {phase === 'questions' ? 'Avaliação de Competências' : phase === 'dilemmas' ? 'Análise de Cenários' : 'Auto-Reflexão'}
             </span>
           </div>
-          <span className="text-text-secondary text-sm font-medium bg-surface-dark px-3 py-1 rounded-full border border-surface-darker">
-            {currentStepGlobal + 1} de {totalSteps}
-          </span>
+          
+          <div className="flex items-center gap-4">
+             {/* TIMER INDICATOR */}
+             {phase !== 'descriptive' && (
+                 <div className={`flex items-center gap-1 text-xs font-bold font-mono px-2 py-1 rounded transition-colors ${timeLeft <= 3 ? 'text-red-500 bg-red-500/10' : 'text-gray-400 bg-gray-800'}`}>
+                     <span className="material-symbols-outlined text-sm">timer</span>
+                     {timeLeft}s
+                 </div>
+             )}
+             <span className="text-text-secondary text-sm font-medium bg-surface-dark px-3 py-1 rounded-full border border-surface-darker">
+                {currentStepGlobal + 1} de {totalSteps}
+            </span>
+          </div>
         </div>
+        
+        {/* Main Progress Bar */}
         <div className="relative w-full h-2 rounded-full bg-surface-darker overflow-hidden">
           <div 
             className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-blue-400 rounded-full transition-all duration-500 ease-out" 
             style={{ width: `${progress}%` }}
           ></div>
         </div>
+
+        {/* Timer Bar (Countdown Visual) */}
+        {phase !== 'descriptive' && !isPaused && (
+             <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden opacity-50">
+                 <div 
+                    className={`h-full transition-all duration-1000 ease-linear ${timeLeft <= 3 ? 'bg-red-500' : 'bg-gray-400'}`}
+                    style={{ width: `${(timeLeft / TIME_LIMIT_SECONDS) * 100}%` }}
+                 ></div>
+             </div>
+        )}
       </div>
 
       {/* --- PHASE: QUESTIONS --- */}
@@ -224,7 +360,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
             </div>
 
             {/* Rating Scale 1-5 */}
-            <div className="flex flex-col gap-4 py-4">
+            <div className={`flex flex-col gap-4 py-4 ${isTransitioning ? 'pointer-events-none opacity-80' : ''}`}>
               <div className="grid grid-cols-5 gap-3">
                 {[1, 2, 3, 4, 5].map((val) => (
                   <label key={val} className="group/option cursor-pointer relative">
@@ -234,6 +370,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
                       value={val}
                       checked={currentAnswer === val}
                       onChange={() => handleQuestionAnswer(val)}
+                      disabled={isTransitioning}
                       className="peer sr-only" 
                     />
                     <div className={`h-full flex flex-col items-center justify-center p-4 gap-3 rounded-xl border-2 transition-all hover:-translate-y-1 
@@ -286,7 +423,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
             </div>
 
             {/* Dilemma Options (Shuffled) */}
-            <div className="flex flex-col gap-3">
+            <div className={`flex flex-col gap-3 ${isTransitioning ? 'pointer-events-none opacity-80' : ''}`}>
               {shuffledOptions.map((opt, idx) => (
                 <label key={idx} className="relative cursor-pointer group/opt">
                   <input
@@ -295,6 +432,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
                     value={opt.value}
                     checked={currentAnswer === opt.value}
                     onChange={() => handleDilemmaAnswer(opt.value)}
+                    disabled={isTransitioning}
                     className="peer sr-only"
                   />
                   <div className={`p-5 rounded-xl border-2 transition-all duration-200 flex items-center gap-4
@@ -352,7 +490,8 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
       <div className="flex items-center justify-between mt-4">
         <button 
           onClick={handlePrev}
-          className="group flex items-center gap-2 px-6 py-3 rounded-lg text-gray-400 hover:text-white hover:bg-surface-dark transition-all"
+          disabled={isTransitioning || isPaused}
+          className="group flex items-center gap-2 px-6 py-3 rounded-lg text-gray-400 hover:text-white hover:bg-surface-dark transition-all disabled:opacity-50"
         >
           <span className="material-symbols-outlined transition-transform group-hover:-translate-x-1">arrow_back</span>
           <span className="font-bold">Anterior</span>
@@ -360,7 +499,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
 
         <button 
           onClick={() => handleNext()}
-          disabled={phase !== 'descriptive' && currentAnswer === undefined}
+          disabled={(phase !== 'descriptive' && currentAnswer === undefined) || isTransitioning || isPaused}
           className="group flex items-center gap-2 px-8 py-3 rounded-lg bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-[0_0_20px_rgba(19,55,236,0.4)] hover:shadow-[0_0_25px_rgba(19,55,236,0.6)] transition-all transform hover:-translate-y-0.5"
         >
           <span className="font-bold">

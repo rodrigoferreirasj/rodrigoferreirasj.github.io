@@ -33,6 +33,9 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : {};
   });
 
+  // Store total time taken for the assessment
+  const [totalTime, setTotalTime] = useState<number>(0);
+
   // Effects to save state changes
   useEffect(() => {
     localStorage.setItem('app_step', step);
@@ -71,12 +74,14 @@ const App: React.FC = () => {
     // Clear previous answers if switching users/modes
     setAnswers({});
     setTextAnswers({});
+    setTotalTime(0);
     setStep('assessment');
   };
 
-  const handleAssessmentComplete = (userAnswers: Answers, userTextAnswers: TextAnswers) => {
+  const handleAssessmentComplete = (userAnswers: Answers, userTextAnswers: TextAnswers, timeTaken: number) => {
     setAnswers(userAnswers);
     setTextAnswers(userTextAnswers);
+    setTotalTime(timeTaken);
     setStep('results');
   };
 
@@ -85,6 +90,7 @@ const App: React.FC = () => {
     setProfile(null);
     setAnswers({});
     setTextAnswers({});
+    setTotalTime(0);
     setStep('welcome');
     // Clear Storage
     localStorage.removeItem('app_step');
@@ -151,6 +157,7 @@ const App: React.FC = () => {
               textAnswers={textAnswers} 
               answers={answers} // Pass raw answers to check dilemmas
               dilemmas={dilemmas} // Pass dilemmas definition
+              totalTime={totalTime} // Pass total time taken
               onRestart={handleRestart} 
             />
         )}

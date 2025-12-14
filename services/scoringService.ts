@@ -1,5 +1,4 @@
-
-import { Answers, Question, Dilemma, ScoreResult, LeadershipLevel, RoleResult, MatrixResult, ConsistencyResult, BlockResult, RoleValidation, CategoryValidation } from '../types';
+import { Answers, Question, Dilemma, ScoreResult, LeadershipLevel, RoleResult, MatrixResult, ConsistencyResult, BlockResult, RoleValidation, CategoryValidation, OmissionAnalysis } from '../types';
 
 // Map for Internal Consistency Checks (Specific Pairs Logic)
 const CONSISTENCY_MAP: Record<number, number[]> = {
@@ -75,6 +74,11 @@ export const calculateScores = (
   // Cluster Validation Stats (For Internal Consistency by Category)
   const categoryValidationStats: Record<string, number[]> = {};
 
+  // Omission Tracking
+  const totalQuestionsPresented = questions.length + dilemmas.length;
+  let omissionCount = 0;
+  const omissionMap: Record<string, number> = {}; // Category -> Count
+
   // Initialize standard roles
   ['Líder', 'Gestor', 'Estrategista', 'Intraempreendedor'].forEach(r => {
     roleStats[r] = { sum: 0, count: 0, horizons: {0: {sum:0, count:0}, 1: {sum:0, count:0}, 2: {sum:0, count:0}, 3: {sum:0, count:0}, 4: {sum:0, count:0}} };
@@ -141,10 +145,24 @@ export const calculateScores = (
     });
   };
 
+  const trackOmission = (categories: string[]) => {
+      omissionCount++;
+      categories.forEach(cat => {
+          omissionMap[cat] = (omissionMap[cat] || 0) + 1;
+      });
+  };
+
   // 1. Process Standard Questions
   questions.forEach((q) => {
     if (answers[q.id] !== undefined) {
       const rawVal = answers[q.id];
+
+      // Handle Omission
+      if (rawVal === null) {
+          trackOmission(q.categories && q.categories.length > 0 ? q.categories : [q.category]);
+          return; // Skip processing for scoring
+      }
+
       // Inversion Logic: 1->5, 5->1. Scale is 1-5.
       // If user selected 5 on an inverted question, it becomes 1.
       const val = q.inverted ? (6 - rawVal) : rawVal; 
@@ -172,6 +190,13 @@ export const calculateScores = (
   dilemmas.forEach((d) => {
     if (answers[d.id] !== undefined) {
       const val = answers[d.id];
+      
+      // Handle Omission
+      if (val === null) {
+          trackOmission([d.category]);
+          return;
+      }
+
       const weight = 1.0; 
 
       // Standard processing for Global/Axis/Horizon scores
@@ -197,6 +222,31 @@ export const calculateScores = (
       categoryValidationStats[d.category].push(val);
     }
   });
+
+  // --- OMISSION ANALYSIS ---
+  const readinessIndex = Math.round(100 - ((omissionCount / totalQuestionsPresented) * 100));
+  
+  // Identify most omitted categories
+  const sortedOmissions = Object.entries(omissionMap).sort((a, b) => b[1] - a[1]);
+  const mainImpactedCategories = sortedOmissions.slice(0, 3).map(([cat]) => cat);
+  
+  let omissionInterpretation = '';
+  if (mainImpactedCategories.length > 0) {
+      omissionInterpretation = `Você omitiu respostas principalmente em temas de ${mainImpactedCategories.join(', ')}. Isso pode indicar desconforto decisório ou necessidade de reflexão maior nessas áreas sob pressão.`;
+  } else if (omissionCount === 0) {
+      omissionInterpretation = "Você demonstrou alta prontidão decisória, respondendo a todos os itens dentro do tempo.";
+  } else {
+      omissionInterpretation = "Suas omissões foram dispersas, não indicando um padrão temático específico, mas sugerindo momentos pontuais de hesitação.";
+  }
+
+  const omissionAnalysis: OmissionAnalysis = {
+      count: omissionCount,
+      percentage: Math.round((omissionCount / totalQuestionsPresented) * 100),
+      readinessIndex: Math.max(0, readinessIndex),
+      mainImpactedCategories,
+      interpretation: omissionInterpretation
+  };
+
 
   // 3. Calculate Final Scores (0-10 Scale or 0-100 where needed)
   
@@ -331,12 +381,14 @@ export const calculateScores = (
     const mainId = parseInt(key);
     const relatedIds = CONSISTENCY_MAP[mainId];
     
-    if (answers[mainId] !== undefined) {
+    // Check mainId for null
+    if (answers[mainId] !== undefined && answers[mainId] !== null) {
       const validRelatedValues = relatedIds
         .map(id => {
             const q = questions.find(qu => qu.id === id);
-            if(q && answers[id] !== undefined) {
-                return q.inverted ? (6 - answers[id]) : answers[id];
+            // Check related for null
+            if(q && answers[id] !== undefined && answers[id] !== null) {
+                return q.inverted ? (6 - (answers[id] as number)) : (answers[id] as number);
             }
             return null;
         })
@@ -345,7 +397,7 @@ export const calculateScores = (
       if (validRelatedValues.length > 0) {
         const relatedAvg = validRelatedValues.reduce((a,b) => a+b, 0) / validRelatedValues.length;
         const mainQ = questions.find(q => q.id === mainId);
-        const mainVal = mainQ?.inverted ? (6 - answers[mainId]) : answers[mainId];
+        const mainVal = mainQ?.inverted ? (6 - (answers[mainId] as number)) : (answers[mainId] as number);
         
         if (Math.abs(mainVal - relatedAvg) > 2.0) {
            internalInconsistencies.push(`Inconsistência detectada no tema de ${mainQ?.category || 'Comportamento'} (Q${mainId}).`);
@@ -354,23 +406,21 @@ export const calculateScores = (
     }
   });
 
-  // B. Dynamic Cluster Check (Populate categoryDetails)
+  // B. Dynamic Cluster Check (Populate categoryDetails using SD)
   Object.entries(categoryValidationStats).forEach(([category, values]) => {
-      let spread = 0;
+      let stdDev = 0;
       let status: 'Consistent' | 'Inconsistent' = 'Consistent';
       
       if (values.length > 1) {
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          spread = max - min;
-          // Threshold: Spread >= 3 (e.g., 1 vs 4, or 2 vs 5)
-          if (spread >= 3) {
+          stdDev = calculateStdDev(values);
+          // Threshold: SD >= 1.2 indicates significant variance (e.g. 1s and 5s mixed)
+          if (stdDev >= 1.2) {
               status = 'Inconsistent';
-              internalInconsistencies.push(`Inconsistência no cluster "${category}": suas respostas variaram muito (entre ${min} e ${max}).`);
+              internalInconsistencies.push(`Inconsistência no cluster "${category}": alto desvio padrão (${stdDev.toFixed(2)}).`);
           }
       }
 
-      categoryDetails[category] = { status, spread };
+      categoryDetails[category] = { status, stdDev: Number(stdDev.toFixed(2)) };
   });
 
   const consistencyResult: ConsistencyResult = {
@@ -430,6 +480,7 @@ export const calculateScores = (
     roleValidation: roleValidationResult,
     predominantHorizon,
     blocks: blocksFinal,
-    categories: categoriesFinal
+    categories: categoriesFinal,
+    omissionAnalysis
   };
 };

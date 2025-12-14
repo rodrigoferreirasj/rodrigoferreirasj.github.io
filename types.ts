@@ -64,7 +64,8 @@ export interface UserProfile {
 }
 
 // Answers can now hold number IDs (questions) or string IDs (dilemmas)
-export type Answers = Record<number | string, number>;
+// Null represents an omission (time out)
+export type Answers = Record<number | string, number | null>;
 export type TextAnswers = Record<number, string>;
 
 export interface RoleResult {
@@ -86,7 +87,15 @@ export interface MatrixResult {
 
 export interface CategoryValidation {
   status: 'Consistent' | 'Inconsistent';
-  spread: number; // Max - Min difference
+  stdDev: number; // Standard Deviation
+}
+
+export interface OmissionAnalysis {
+    count: number;
+    percentage: number;
+    readinessIndex: number; // 0-100
+    mainImpactedCategories: string[]; // Categories with most omissions
+    interpretation: string; // Qualitative text
 }
 
 export interface ConsistencyResult {
@@ -111,4 +120,5 @@ export interface ScoreResult {
   predominantHorizon: number; // Color coding
   blocks: Record<string, BlockResult>; // Changed to store score and horizon
   categories: Record<string, number>;
+  omissionAnalysis: OmissionAnalysis; // New Field for Time/Pressure analysis
 }

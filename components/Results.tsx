@@ -10,8 +10,9 @@ interface Props {
   results: ScoreResult;
   profile: UserProfile;
   textAnswers: TextAnswers;
-  answers: Answers; // Need full answers to check dilemma scores
+  answers: Answers; // Need full answers to check dilemmas scores
   dilemmas: Dilemma[]; // Need dilemma info for texts
+  totalTime?: number; // Total time taken in seconds
   onRestart: () => void;
 }
 
@@ -49,8 +50,8 @@ const CATEGORY_HORIZONS: Record<string, number> = {
   'Delegação & Empowerment': 1
 };
 
-const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dilemmas, onRestart }) => {
-  const { matrix, roles, horizons, consistency, predominantHorizon, categories, blocks, roleValidation } = results;
+const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dilemmas, totalTime, onRestart }) => {
+  const { matrix, roles, horizons, consistency, predominantHorizon, categories, blocks, roleValidation, omissionAnalysis } = results;
   const printRef = useRef<HTMLDivElement>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
@@ -62,6 +63,13 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
   const EMAILJS_SERVICE_ID = "service_jmkr2dn";
   const EMAILJS_TEMPLATE_ID = "assessment_template";
   const EMAILJS_PUBLIC_KEY = "dh8MnuS1CHuhkCk4X";
+
+  // Formatter for Total Time
+  const formatTotalTime = (seconds: number) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // AUTOMATIC EMAIL SENDING EFFECT (OPTION B: HTML SUMMARY)
   useEffect(() => {
@@ -127,7 +135,7 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
     };
 
     // Trigger automation on mount
-    sendResultsEmail();
+    // sendResultsEmail(); // DISABLED TEMPORARILY AS REQUESTED
   }, []); // Empty dependency array = runs once on mount
 
   // Identify Low Score Dilemmas (Score = 1)
@@ -145,7 +153,7 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
     const details = consistency.categoryDetails || ({} as Record<string, CategoryValidation>);
     return (Object.entries(details) as [string, CategoryValidation][])
         .filter(([_, data]) => data.status === 'Inconsistent')
-        .sort((a, b) => b[1].spread - a[1].spread); // Highest spread first
+        .sort((a, b) => b[1].stdDev - a[1].stdDev); // Highest standard deviation first
   }, [consistency.categoryDetails]);
 
   // Horizon Colors
@@ -275,7 +283,7 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
     horizon: (data as BlockResult).horizon
   })).sort((a, b) => b.score - a.score);
 
-  // MANUAL PDF DOWNLOAD
+  // SMART PDF DOWNLOAD (ELEMENT-BY-ELEMENT)
   const handleDownloadPDF = async () => {
     if (!printRef.current) return;
     
@@ -283,43 +291,55 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
     // 1. Switch to Light Mode
     setPrintMode(true);
 
-    // Wait for render cycle to update styles
+    // Wait for render cycle to update styles (charts need to redraw with new colors)
     setTimeout(async () => {
         try {
-            const element = printRef.current;
-            if (!element) return;
-
-            const canvas = await html2canvas(element, {
-                scale: 2, 
-                backgroundColor: '#ffffff', // White background
-                useCORS: true,
-                logging: false
-            });
-
-            const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF({
                 orientation: 'portrait',
                 unit: 'mm',
                 format: 'a4'
             });
 
-            const imgWidth = 210;
+            // A4 Size: 210 x 297 mm
+            const pageWidth = 210;
             const pageHeight = 297;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            let heightLeft = imgHeight;
-            let position = 0;
+            const margin = 10; // 10mm margin
+            const contentWidth = pageWidth - (2 * margin);
+            let currentY = margin;
 
-            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
+            // Get all top-level sections (children of the main wrapper)
+            const sections = Array.from(printRef.current.children) as HTMLElement[];
 
-            while (heightLeft >= 0) {
-                position = heightLeft - imgHeight;
-                pdf.addPage();
-                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
+            for (const section of sections) {
+                // Skip if hidden or empty
+                if (section.offsetHeight === 0 || section.style.display === 'none') continue;
+
+                // Capture individual section
+                const canvas = await html2canvas(section, {
+                    scale: 2, 
+                    backgroundColor: '#ffffff',
+                    useCORS: true,
+                    logging: false
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const imgHeight = (canvas.height * contentWidth) / canvas.width;
+
+                // Check if we need a page break
+                // If currentY + image height exceeds page height (minus bottom margin)
+                if (currentY + imgHeight > (pageHeight - margin)) {
+                    pdf.addPage();
+                    currentY = margin; // Reset to top
+                }
+
+                pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgHeight);
+                
+                // Add some spacing after the component
+                currentY += imgHeight + 5; 
             }
 
             pdf.save(`Radar_Lideranca_${profile.name.replace(/\s+/g, '_')}.pdf`);
+
         } catch (error) {
             console.error('Error generating PDF:', error);
         } finally {
@@ -327,7 +347,7 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
             setPrintMode(false);
             setIsGeneratingPdf(false);
         }
-    }, 500); // 500ms delay to ensure charts re-render with new colors
+    }, 800); // slightly longer delay to ensure full chart render
   };
 
   // JSON DOWNLOAD (Replaces CSV)
@@ -412,6 +432,74 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
                <div className="h-full bg-primary" style={{width: `${results.total}%`}}></div>
              </div>
           </div>
+        </div>
+
+        {/* DECISION READINESS INDEX (New Card) */}
+        <div className={`${styles.bgCard} rounded-xl p-8 border flex flex-col md:flex-row items-center gap-8 shadow-lg relative overflow-hidden`}>
+            {/* Index Visual */}
+            <div className="relative size-32 md:size-40 flex items-center justify-center">
+                <svg className="size-full transform -rotate-90" viewBox="0 0 36 36">
+                    <path
+                        className="text-gray-700"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                    />
+                    <path
+                        className={`${omissionAnalysis.readinessIndex > 80 ? 'text-green-500' : omissionAnalysis.readinessIndex > 60 ? 'text-yellow-500' : 'text-red-500'} transition-all duration-1000 ease-out`}
+                        strokeDasharray={`${omissionAnalysis.readinessIndex}, 100`}
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                    />
+                </svg>
+                <div className="absolute flex flex-col items-center">
+                    <span className={`text-3xl md:text-4xl font-black ${styles.textPrimary}`}>{omissionAnalysis.readinessIndex}%</span>
+                    <span className="text-[10px] uppercase font-bold text-gray-500">Prontidão</span>
+                </div>
+            </div>
+
+            {/* Analysis Text */}
+            <div className="flex-1 space-y-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <h3 className={`text-xl font-bold ${styles.textPrimary}`}>Índice de Prontidão Decisória</h3>
+                        <div className="group relative cursor-help">
+                             <span className="material-symbols-outlined text-gray-500 text-sm">help</span>
+                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                 Mede sua capacidade de tomar decisões sob pressão de tempo (10s). Omissões reduzem este índice.
+                             </div>
+                        </div>
+                    </div>
+                    
+                    {/* TOTAL TIME DISPLAY */}
+                    {totalTime !== undefined && (
+                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${printMode ? 'bg-gray-100 border-gray-300' : 'bg-surface-darker border-gray-700'}`}>
+                            <span className="material-symbols-outlined text-sm text-primary">timer</span>
+                            <span className={`text-sm font-mono font-bold ${styles.textPrimary}`}>
+                                Tempo Total: {formatTotalTime(totalTime)}
+                            </span>
+                        </div>
+                    )}
+                </div>
+                
+                <p className={`text-sm leading-relaxed ${styles.textSecondary}`}>
+                    {omissionAnalysis.interpretation}
+                </p>
+
+                {omissionAnalysis.mainImpactedCategories.length > 0 && (
+                    <div className={`p-4 rounded-lg border text-xs ${printMode ? 'bg-red-50 border-red-200 text-red-800' : 'bg-red-900/10 border-red-900/30 text-red-300'}`}>
+                        <span className="font-bold flex items-center gap-1 mb-1">
+                            <span className="material-symbols-outlined text-sm">warning</span>
+                            Pontos de Hesitação:
+                        </span>
+                        Você tendeu a omitir respostas sob pressão nos temas: <span className="font-bold">{omissionAnalysis.mainImpactedCategories.join(', ')}</span>.
+                    </div>
+                )}
+            </div>
         </div>
 
         {/* 2. The 9-Box Matrix */}
@@ -758,7 +846,14 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
                 {inconsistentCategories.map(([cat, data]) => (
                     <div key={cat} className={`flex justify-between items-center p-2 rounded border ${printMode ? 'bg-orange-50 border-orange-200' : 'bg-orange-900/10 border-orange-800/50'}`}>
                     <span className={`text-xs font-medium ${printMode ? 'text-gray-800' : 'text-gray-300'}`}>{cat}</span>
-                    <span className="text-xs font-bold text-orange-500">Var: {data.spread}</span>
+                    <div className="flex items-center gap-1 group relative cursor-help">
+                        <span className="text-xs font-bold text-orange-500">SD: {data.stdDev.toFixed(2)}</span>
+                        <span className="material-symbols-outlined text-[14px] text-orange-400">help</span>
+                        {/* Custom Tooltip */}
+                        <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-gray-900 text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                            Desvio Padrão: Mede a dispersão das suas notas. Alto desvio indica contradição nas respostas do mesmo tema.
+                        </div>
+                    </div>
                     </div>
                 ))}
                 {inconsistentCategories.length === 0 && <span className="text-xs text-gray-500">Nenhuma inconsistência crítica.</span>}
