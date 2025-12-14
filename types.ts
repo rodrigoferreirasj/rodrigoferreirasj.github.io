@@ -1,3 +1,4 @@
+
 export enum LeadershipLevel {
   L1 = 'L1', // Líder de Si
   L2 = 'L2', // Líder de Outros
@@ -32,7 +33,9 @@ export interface Dilemma {
   block: string;    // To map to scoring
   axis: string;     // To map to scoring
   category: string; // To map to scoring
-  role: string;     // To map to scoring
+  role: string;     // Primary Role
+  secondaryRole?: string; // Secondary Role for validation
+  horizon: HorizonLevel; // Added specific horizon
   options: DilemmaOption[];
 }
 
@@ -58,6 +61,11 @@ export interface RoleResult {
   horizons: Record<number, number>;
 }
 
+export interface BlockResult {
+  score: number;
+  horizon: number; // Dominant horizon for the block
+}
+
 export interface MatrixResult {
   x: number; // People
   y: number; // Results
@@ -72,13 +80,18 @@ export interface ConsistencyResult {
   internalInconsistencies: string[]; // List of specific warnings based on question mapping
 }
 
+export interface RoleValidation {
+  alerts: string[];
+}
+
 export interface ScoreResult {
   total: number; // 0-100
   matrix: MatrixResult;
   roles: Record<string, RoleResult>;
   horizons: Record<number, number>; // H0-H4 averages
   consistency: ConsistencyResult;
+  roleValidation: RoleValidation; // Validation from dilemmas
   predominantHorizon: number; // Color coding
-  blocks: Record<string, number>;
+  blocks: Record<string, BlockResult>; // Changed to store score and horizon
   categories: Record<string, number>;
 }

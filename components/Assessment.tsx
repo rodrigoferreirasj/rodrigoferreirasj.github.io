@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Question, Answers, Dilemma, DilemmaOption, TextAnswers } from '../types';
+import { Question, Answers, Dilemma, DilemmaOption, TextAnswers, DescriptiveQuestion } from '../types';
 import { descriptiveQuestions } from '../data/descriptive';
 
 interface Props {
@@ -14,42 +14,52 @@ type Phase = 'questions' | 'dilemmas' | 'descriptive';
 const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack }) => {
   const [phase, setPhase] = useState<Phase>('questions');
   
-  // Question State
+  // Randomized Lists State
   const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>([]);
-  const [currentQIndex, setCurrentQIndex] = useState(0);
-  
-  // Dilemma State
-  const [currentDIndex, setCurrentDIndex] = useState(0);
+  const [shuffledDilemmas, setShuffledDilemmas] = useState<Dilemma[]>([]);
+  const [shuffledDescriptive, setShuffledDescriptive] = useState<DescriptiveQuestion[]>([]);
 
-  // Descriptive State
+  // Indices
+  const [currentQIndex, setCurrentQIndex] = useState(0);
+  const [currentDIndex, setCurrentDIndex] = useState(0);
   const [currentDescIndex, setCurrentDescIndex] = useState(0);
 
   const [answers, setAnswers] = useState<Answers>({});
   const [textAnswers, setTextAnswers] = useState<TextAnswers>({});
   const [direction, setDirection] = useState<'next' | 'prev'>('next');
   
-  // Shuffle questions once on mount
+  // Initialize and Shuffle Everything once on mount
   useEffect(() => {
-    const shuffled = [...questions].sort(() => Math.random() - 0.5);
-    setShuffledQuestions(shuffled);
-  }, [questions]);
+    // 1. Shuffle Scale Questions
+    setShuffledQuestions([...questions].sort(() => Math.random() - 0.5));
+    
+    // 2. Shuffle Dilemmas (Scenarios)
+    setShuffledDilemmas([...dilemmas].sort(() => Math.random() - 0.5));
 
-  // Shuffle Dilemma Options
-  const currentDilemma = dilemmas[currentDIndex];
+    // 3. Shuffle Descriptive Questions
+    setShuffledDescriptive([...descriptiveQuestions].sort(() => Math.random() - 0.5));
+  }, [questions, dilemmas]);
+
+  // Derived Current Items
+  const currentQuestion = shuffledQuestions[currentQIndex];
+  const currentDilemma = shuffledDilemmas[currentDIndex];
+  const currentDescriptive = shuffledDescriptive[currentDescIndex];
+
+  // Shuffle Dilemma Options (randomize options within the scenario)
   const shuffledOptions = useMemo(() => {
     if (!currentDilemma) return [];
     return [...currentDilemma.options].sort(() => Math.random() - 0.5);
   }, [currentDilemma?.id]);
 
-  const currentDescriptive = descriptiveQuestions[currentDescIndex];
-
-  if (shuffledQuestions.length === 0) return <div className="text-white text-center mt-20">Carregando avaliação...</div>;
+  if (shuffledQuestions.length === 0 || shuffledDilemmas.length === 0 || shuffledDescriptive.length === 0) {
+      return <div className="text-white text-center mt-20">Carregando avaliação...</div>;
+  }
 
   // --- Handlers for Questions Phase ---
 
   const handleQuestionAnswer = (score: number) => {
-    const q = shuffledQuestions[currentQIndex];
-    setAnswers(prev => ({ ...prev, [q.id]: score }));
+    if (!currentQuestion) return;
+    setAnswers(prev => ({ ...prev, [currentQuestion.id]: score }));
     setTimeout(() => {
         handleNext();
     }, 250);
@@ -58,8 +68,8 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack }
   // --- Handlers for Dilemmas Phase ---
 
   const handleDilemmaAnswer = (score: number) => {
-    const d = dilemmas[currentDIndex];
-    setAnswers(prev => ({ ...prev, [d.id]: score }));
+    if (!currentDilemma) return;
+    setAnswers(prev => ({ ...prev, [currentDilemma.id]: score }));
     setTimeout(() => {
         handleNext();
     }, 250);
@@ -68,6 +78,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack }
   // --- Handlers for Descriptive Phase ---
 
   const handleTextChange = (text: string) => {
+      if (!currentDescriptive) return;
       setTextAnswers(prev => ({ ...prev, [currentDescriptive.id]: text }));
   };
 
@@ -85,7 +96,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack }
         setCurrentDIndex(0);
       }
     } else if (phase === 'dilemmas') {
-      if (currentDIndex < dilemmas.length - 1) {
+      if (currentDIndex < shuffledDilemmas.length - 1) {
         setCurrentDIndex(prev => prev + 1);
       } else {
         // Transition to Descriptive
@@ -94,7 +105,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack }
       }
     } else {
       // Descriptive Phase
-      if (currentDescIndex < descriptiveQuestions.length - 1) {
+      if (currentDescIndex < shuffledDescriptive.length - 1) {
         setCurrentDescIndex(prev => prev + 1);
       } else {
         onComplete(answers, textAnswers);
@@ -111,7 +122,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack }
       } else {
         // Back to Dilemmas
         setPhase('dilemmas');
-        setCurrentDIndex(dilemmas.length - 1);
+        setCurrentDIndex(shuffledDilemmas.length - 1);
       }
     } else if (phase === 'dilemmas') {
       if (currentDIndex > 0) {
@@ -133,19 +144,21 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack }
 
   // --- Rendering Calculations ---
   
-  const totalSteps = shuffledQuestions.length + dilemmas.length + descriptiveQuestions.length;
+  const totalSteps = shuffledQuestions.length + shuffledDilemmas.length + shuffledDescriptive.length;
   let currentStepGlobal = 0;
   if (phase === 'questions') currentStepGlobal = currentQIndex;
   else if (phase === 'dilemmas') currentStepGlobal = shuffledQuestions.length + currentDIndex;
-  else currentStepGlobal = shuffledQuestions.length + dilemmas.length + currentDescIndex;
+  else currentStepGlobal = shuffledQuestions.length + shuffledDilemmas.length + currentDescIndex;
 
   const progress = ((currentStepGlobal + 1) / totalSteps) * 100;
 
-  const currentQuestion = shuffledQuestions[currentQIndex];
-  const currentAnswer = phase === 'questions' 
+  // Guard against undefined during render
+  if (phase === 'questions' && !currentQuestion) return <div className="text-white text-center mt-20">Carregando pergunta...</div>;
+
+  const currentAnswer = phase === 'questions' && currentQuestion
     ? answers[currentQuestion.id] 
-    : phase === 'dilemmas' 
-      ? answers[currentDilemma?.id] 
+    : phase === 'dilemmas' && currentDilemma
+      ? answers[currentDilemma.id] 
       : null;
 
   return (
@@ -175,7 +188,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack }
       </div>
 
       {/* --- PHASE: QUESTIONS --- */}
-      {phase === 'questions' && (
+      {phase === 'questions' && currentQuestion && (
         <div 
           key={`q-${currentQuestion.id}`} 
           className={`bg-surface-dark border border-gray-800 rounded-2xl p-6 md:p-10 shadow-2xl relative overflow-hidden group transition-all duration-500 ease-in-out transform ${direction === 'next' ? 'animate-slide-in-right' : 'animate-slide-in-left'}`}
@@ -332,8 +345,8 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack }
         >
           <span className="font-bold">
             {phase === 'descriptive' 
-               ? (currentDescIndex === descriptiveQuestions.length - 1 ? 'Finalizar' : (textAnswers[currentDescriptive.id] ? 'Próxima' : 'Pular')) 
-               : (phase === 'dilemmas' && currentDIndex === dilemmas.length - 1 ? 'Continuar' : 'Próxima')
+               ? (currentDescIndex === shuffledDescriptive.length - 1 ? 'Finalizar' : (textAnswers[currentDescriptive.id] ? 'Próxima' : 'Pular')) 
+               : (phase === 'dilemmas' && currentDIndex === shuffledDilemmas.length - 1 ? 'Continuar' : 'Próxima')
             }
           </span>
           <span className="material-symbols-outlined transition-transform group-hover:translate-x-1">arrow_forward</span>

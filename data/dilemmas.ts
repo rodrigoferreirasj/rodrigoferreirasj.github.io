@@ -1,3 +1,4 @@
+
 import { Dilemma } from '../types';
 
 export const dilemmas: Dilemma[] = [
@@ -8,11 +9,13 @@ export const dilemmas: Dilemma[] = [
     block: 'Etica, Integridade e Propósito',
     axis: 'Ambos',
     category: 'Tomada de Decisão Ética',
-    role: 'Líder',
+    role: 'Líder', // Principal
+    secondaryRole: 'Estrategista', // Secundário
+    horizon: 4, 
     options: [
-      { text: 'Aceito a solicitação para garantir o batimento da meta.', value: 1 }, // Baixa
-      { text: 'Consulto as áreas responsáveis e decido com cautela.', value: 3 }, // Média
-      { text: 'Recuso a solicitação e explico ao cliente a razão ligada aos valores da empresa.', value: 5 } // Alta
+      { text: 'Aceito a solicitação para garantir o batimento da meta.', value: 1 }, 
+      { text: 'Consulto as áreas responsáveis e decido com cautela.', value: 3 }, 
+      { text: 'Recuso a solicitação e explico ao cliente a razão ligada aos valores da empresa.', value: 5 } 
     ]
   },
   {
@@ -22,11 +25,13 @@ export const dilemmas: Dilemma[] = [
     block: 'Desenvolvimento de Líderes',
     axis: 'Pessoas',
     category: 'Delegação & Empowerment',
-    role: 'Líder',
+    role: 'Gestor', // CORRIGIDO: Papel Principal conforme solicitado (Gestor)
+    secondaryRole: 'Líder', // Secundário
+    horizon: 1, 
     options: [
-      { text: 'Reforço o controle e passo a centralizar as decisões.', value: 1 }, // Baixa
-      { text: 'Alinho os limites de atuação e passo a acompanhar mais de perto.', value: 3 }, // Média
-      { text: 'Dou autonomia estruturada, permitindo o erro controlado e focando no desenvolvimento.', value: 5 } // Alta
+      { text: 'Reforço o controle e passo a centralizar as decisões.', value: 1 }, 
+      { text: 'Alinho os limites de atuação e passo a acompanhar mais de perto.', value: 3 }, 
+      { text: 'Dou autonomia estruturada, permitindo o erro controlado e focando no desenvolvimento.', value: 5 } 
     ]
   },
   {
@@ -36,11 +41,13 @@ export const dilemmas: Dilemma[] = [
     block: 'Gestão e Execução',
     axis: 'Resultados',
     category: 'Gestão de Performance',
-    role: 'Gestor',
+    role: 'Estrategista', // CORRIGIDO: Papel Principal conforme solicitado (Estrategista)
+    secondaryRole: 'Gestor', // Secundário
+    horizon: 3, 
     options: [
-      { text: 'Foco totalmente no curto prazo para garantir o número.', value: 1 }, // Baixa
-      { text: 'Negocio os prazos possíveis e busco um equilíbrio paliativo.', value: 3 }, // Média
-      { text: 'Priorizo a sustentabilidade do time e ajusto as entregas com total transparência sobre os riscos.', value: 5 } // Alta
+      { text: 'Foco totalmente no curto prazo para garantir o número.', value: 1 }, 
+      { text: 'Negocio os prazos possíveis e busco um equilíbrio paliativo.', value: 3 }, 
+      { text: 'Priorizo a sustentabilidade do time e ajusto as entregas com total transparência sobre os riscos.', value: 5 } 
     ]
   },
   {
@@ -50,11 +57,45 @@ export const dilemmas: Dilemma[] = [
     block: 'Maturidade Interna',
     axis: 'Pessoas',
     category: 'Gestão de Conflitos & Conversas Difíceis',
-    role: 'Líder',
+    role: 'Líder', // Principal
+    secondaryRole: 'Gestor', // Secundário
+    horizon: 2, 
     options: [
-      { text: 'Evito a conversa difícil para não tensionar o ambiente.', value: 1 }, // Baixa
-      { text: 'Falo com a pessoa, mas suavizo ao máximo a mensagem para não chatear.', value: 3 }, // Média
-      { text: 'Converso com transparência, cuidado e responsabilidade, abordando o fato claramente.', value: 5 } // Alta
+      { text: 'Evito a conversa difícil para não tensionar o ambiente.', value: 1 }, 
+      { text: 'Falo com a pessoa, mas suavizo ao máximo a mensagem para não chatear.', value: 3 }, 
+      { text: 'Converso com transparência, cuidado e responsabilidade, abordando o fato claramente.', value: 5 } 
+    ]
+  },
+  {
+    id: 'D5',
+    title: 'Exploração vs Exploração Segura',
+    scenario: 'Surge uma oportunidade de testar uma nova solução que pode gerar vantagem competitiva, mas ainda não há garantias claras de retorno e há risco de desperdício de recursos.',
+    block: 'Inovação e Adaptabilidade',
+    axis: 'Ambos',
+    category: 'Inovação & Melhoria Contínua',
+    role: 'Intraempreendedor', // Principal
+    secondaryRole: 'Estrategista', // Secundário
+    horizon: 2, // H2 (Médio prazo/Inovação)
+    options: [
+      { text: 'Evito a iniciativa para não correr riscos e prefiro manter o modelo atual.', value: 1 }, 
+      { text: 'Aguardo mais dados, aprovações ou garantias antes de avançar.', value: 3 }, 
+      { text: 'Testo a iniciativa em pequena escala, com critérios claros de aprendizado e risco controlado.', value: 5 } 
+    ]
+  },
+  {
+    id: 'D6',
+    title: 'Inovação vs Eficiência Atual',
+    scenario: 'A equipe está sobrecarregada para cumprir metas operacionais, mas existe uma oportunidade de inovar que pode reduzir esforço e gerar ganhos futuros.',
+    block: 'Inovação e Adaptabilidade',
+    axis: 'Ambos',
+    category: 'Adaptação & Aprendizagem Contínua',
+    role: 'Intraempreendedor', // Principal
+    secondaryRole: 'Gestor', // Secundário
+    horizon: 1, // H1 (Eficiência Imediata vs Futura)
+    options: [
+      { text: 'Abandono qualquer tentativa de inovação para focar apenas na entrega imediata.', value: 1 }, 
+      { text: 'Deixo a inovação para depois, quando “sobrar tempo”.', value: 3 }, 
+      { text: 'Protejo tempo e recursos mínimos para experimentação, mesmo mantendo a operação funcionando.', value: 5 } 
     ]
   }
 ];

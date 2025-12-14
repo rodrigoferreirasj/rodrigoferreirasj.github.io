@@ -1,4 +1,5 @@
-import { Answers, Question, Dilemma, ScoreResult, LeadershipLevel, RoleResult, MatrixResult, ConsistencyResult } from '../types';
+
+import { Answers, Question, Dilemma, ScoreResult, LeadershipLevel, RoleResult, MatrixResult, ConsistencyResult, BlockResult, RoleValidation } from '../types';
 
 // Map for Internal Consistency Checks
 const CONSISTENCY_MAP: Record<number, number[]> = {
@@ -42,6 +43,9 @@ const getWeight = (userLevel: LeadershipLevel, qHorizon: number): number => {
   return 1.0;
 };
 
+// Helper: Get Average
+const getAvg = (stats: {sum: number, count: number}) => stats.count > 0 ? stats.sum / stats.count : 0;
+
 export const calculateScores = (
     questions: Question[], 
     dilemmas: Dilemma[],
@@ -60,12 +64,18 @@ export const calculateScores = (
 
   const roleStats: Record<string, { sum: number; count: number; horizons: Record<number, {sum: number, count: number}> }> = {};
   const horizonStats: Record<number, { sum: number; count: number }> = {};
-  const blockStats: Record<string, { sum: number; count: number }> = {};
+  
+  // Update Block Stats to track horizon frequency
+  const blockStats: Record<string, { sum: number; count: number; horizonCounts: Record<number, number> }> = {};
   const categoryStats: Record<string, { sum: number; count: number }> = {};
+  
+  // Validation Stats (Specific for Dilemmas vs Roles)
+  const roleValidationStats: Record<string, { sum: number; count: number }> = {};
 
   // Initialize standard roles
   ['Líder', 'Gestor', 'Estrategista', 'Intraempreendedor'].forEach(r => {
     roleStats[r] = { sum: 0, count: 0, horizons: {0: {sum:0, count:0}, 1: {sum:0, count:0}, 2: {sum:0, count:0}, 3: {sum:0, count:0}, 4: {sum:0, count:0}} };
+    roleValidationStats[r] = { sum: 0, count: 0 };
   });
 
   // Helper to process a value into stats
@@ -88,11 +98,11 @@ export const calculateScores = (
       axisStats[axis].count++;
     }
 
-    // Role
+    // Role (General Scoring)
     if (roleStats[role]) {
       roleStats[role].sum += val;
       roleStats[role].count++;
-      // Role Horizons (Default 0 if undefined for dilemmas)
+      // Role Horizons
       const h = horizon ?? 0;
       if (roleStats[role].horizons[h]) {
         roleStats[role].horizons[h].sum += val;
@@ -108,9 +118,14 @@ export const calculateScores = (
     }
 
     // Blocks & Categories
-    if (!blockStats[block]) blockStats[block] = { sum: 0, count: 0 };
+    if (!blockStats[block]) {
+      blockStats[block] = { sum: 0, count: 0, horizonCounts: {0:0, 1:0, 2:0, 3:0, 4:0} };
+    }
     blockStats[block].sum += val;
     blockStats[block].count++;
+    if (horizon !== undefined) {
+        blockStats[block].horizonCounts[horizon] = (blockStats[block].horizonCounts[horizon] || 0) + 1;
+    }
 
     if (!categoryStats[category]) categoryStats[category] = { sum: 0, count: 0 };
     categoryStats[category].sum += val;
@@ -121,7 +136,10 @@ export const calculateScores = (
   questions.forEach((q) => {
     if (answers[q.id] !== undefined) {
       const rawVal = answers[q.id];
-      const val = q.inverted ? (6 - rawVal) : rawVal; // 1-5 Scale
+      // Inversion Logic: 1->5, 5->1. Scale is 1-5.
+      // If user selected 5 on an inverted question, it becomes 1.
+      const val = q.inverted ? (6 - rawVal) : rawVal; 
+      
       const weight = getWeight(userLevel, q.horizon);
       
       processStat(val, weight, q.axis, q.role, q.horizon, q.block, q.category);
@@ -129,16 +147,26 @@ export const calculateScores = (
   });
 
   // 2. Process Dilemmas (Treat as high-weight H3/H4 equivalent impact or standard weight)
-  // Dilemmas use IDs like 'D1', 'D2'. They are already scored 1, 3, 5.
   dilemmas.forEach((d) => {
     if (answers[d.id] !== undefined) {
       const val = answers[d.id];
-      // We assume standard weight (1.0) for simplicity, or we could boost them. 
-      // Since they are situational, we can treat them as Horizon 2 (Medium) for generic classification if undefined
-      const impliedHorizon = 2; 
       const weight = 1.0; 
 
-      processStat(val, weight, d.axis, d.role, impliedHorizon, d.block, d.category);
+      // Standard processing for Global/Axis/Horizon scores
+      processStat(val, weight, d.axis, d.role, d.horizon, d.block, d.category);
+
+      // --- VALIDATION LOGIC START ---
+      // Accumulate for Validation (Primary Role)
+      if (roleValidationStats[d.role]) {
+          roleValidationStats[d.role].sum += val;
+          roleValidationStats[d.role].count++;
+      }
+      // Accumulate for Validation (Secondary Role)
+      if (d.secondaryRole && roleValidationStats[d.secondaryRole]) {
+          roleValidationStats[d.secondaryRole].sum += val;
+          roleValidationStats[d.secondaryRole].count++;
+      }
+      // --- VALIDATION LOGIC END ---
     }
   });
 
@@ -148,12 +176,10 @@ export const calculateScores = (
   const total = globalMaxSum > 0 ? Math.round((globalWeightedSum / globalMaxSum) * 100) : 0;
 
   // Axis Scores (0-5 Scale for Matrix)
-  const getAvg = (stats: {sum: number, count: number}) => stats.count > 0 ? stats.sum / stats.count : 0;
-  
   const peopleScore = getAvg(axisStats['Pessoas']);
   const resultsScore = getAvg(axisStats['Resultados']);
 
-  // 4. Matrix 9-Quadrant Logic
+  // 4. Matrix 9-Box Logic
   const getRange = (val: number): 'Low' | 'Med' | 'High' => {
     if (val < 2.5) return 'Low';
     if (val < 4.0) return 'Med';
@@ -203,29 +229,69 @@ export const calculateScores = (
     };
   });
 
+  // --- ROLE VALIDATION (Dilemmas vs Questions) ---
+  const roleAlerts: string[] = [];
+  Object.keys(rolesFinal).forEach(role => {
+      const questionScore = rolesFinal[role].score; // Score from all inputs (dominated by questions)
+      const dilemmaStats = roleValidationStats[role];
+      const dilemmaScore = getAvg(dilemmaStats);
+
+      // Only compare if we have dilemma data for this role
+      if (dilemmaStats.count > 0) {
+          const discrepancy = Math.abs(questionScore - dilemmaScore);
+          
+          // Threshold: 1.25 points difference on a 5-point scale is significant (approx 1 standard deviation gap)
+          if (discrepancy > 1.25) {
+              const type = questionScore > dilemmaScore ? 'superestimada' : 'subestimada';
+              roleAlerts.push(
+                  `Discrepância no papel de ${role}: Sua autoavaliação teórica (Nota: ${questionScore.toFixed(1)}) está ${type} em relação à sua tomada de decisão prática nos dilemas (Nota: ${dilemmaScore.toFixed(1)}).`
+              );
+          }
+      }
+  });
+
   const stdDev = calculateStdDev(roleAverages);
+  
+  // Revised Logic: Specific Thresholds based on Deviation and Role Scores
   let consistencyStatus: ConsistencyResult['status'] = 'Balanceado';
   let consistencyMsg = '';
 
-  const transformatorScore = rolesFinal['Intraempreendedor']?.score || 0;
-  const leaderScore = rolesFinal['Líder']?.score || 0;
-  const managerScore = rolesFinal['Gestor']?.score || 0;
+  const transfScore = rolesFinal['Intraempreendedor']?.score || 0; // Assuming Intraempreendedor = Transformador role mapping
+  const liderScore = rolesFinal['Líder']?.score || 0;
+  const gestorScore = rolesFinal['Gestor']?.score || 0;
+  
+  // Determine if specific roles are low/high
+  const rolesBelow3 = roleAverages.filter(s => s < 3.0).length;
+  const rolesBelow2_8 = roleAverages.filter(s => s < 2.8).length;
+  const rolesAbove4 = roleAverages.filter(s => s > 4.0).length;
+  const rolesAbove4_5 = roleAverages.filter(s => s >= 4.5).length;
+  const minRole = Math.min(...roleAverages);
+  const maxRole = Math.max(...roleAverages);
 
-  if (transformatorScore >= 4.5 && (leaderScore <= 2.5 || managerScore <= 2.5)) {
+  // 1. Contraditório check first (Rare pattern)
+  if (transfScore >= 4.5 && (liderScore <= 2.5 || gestorScore <= 2.5)) {
     consistencyStatus = 'Contraditório';
-    consistencyMsg = "Há um desalinhamento entre sua visão aspiracional e sua prática diária.";
-  } else if (stdDev > 0.90) {
+    consistencyMsg = "Há um desalinhamento entre sua visão aspiracional e sua prática diária. Você pensa como líder sênior, mas opera como líder júnior. Isso reduz credibilidade e impacta o exemplo.";
+  }
+  // 2. Fragmentado
+  else if (stdDev > 0.90 || rolesBelow2_8 >= 2 || (transfScore > 4.0 && minRole < 2.5)) {
     consistencyStatus = 'Fragmentado';
-    consistencyMsg = "Seu perfil revela inconsistências importantes entre papéis fundamentais.";
-  } else if (stdDev >= 0.56) {
+    consistencyMsg = "Seu perfil revela inconsistências importantes entre papéis fundamentais. Isso indica risco de decisões descoordenadas, impacto baixo na equipe e necessidade de desenvolvimento imediato.";
+  }
+  // 3. Desbalanceado
+  else if ((stdDev >= 0.56 && stdDev <= 0.90) || (maxRole >= 4.5 && minRole <= 3.0)) {
     consistencyStatus = 'Desbalanceado';
-    consistencyMsg = "Você possui forças claras, mas fragilidades marcantes em outros papéis.";
-  } else if (stdDev >= 0.31) {
-    consistencyStatus = 'Balanceado';
-    consistencyMsg = "Você apresenta tendências naturais em alguns papéis, mas mantém boa coerência geral.";
-  } else {
+    consistencyMsg = "Você possui forças claras, mas também fragilidades marcantes. Esse tipo de assimetria reduz eficiência operacional e estratégica.";
+  }
+  // 4. Consistente
+  else if (stdDev <= 0.30 && minRole >= 3.0 && rolesAbove4 >= 2) {
     consistencyStatus = 'Consistente';
-    consistencyMsg = "Você demonstra práticas equilibradas e maturidade entre intenção e comportamento.";
+    consistencyMsg = "Você demonstra práticas equilibradas entre Liderança, Gestão, Estratégia, Intraempreendedorismo e Transformação. Seu perfil indica maturidade e coerência entre intenção e comportamento.";
+  }
+  // 5. Balanceado (Default fallthrough for 0.31 <= stdDev <= 0.55 or conditions not meeting Consistent)
+  else {
+    consistencyStatus = 'Balanceado';
+    consistencyMsg = "Você apresenta tendências naturais em alguns papéis, mas mantém boa coerência geral. Há espaço para sofisticação em alguns papéis.";
   }
 
   // 6. Internal Consistency Check (Questions Only for now)
@@ -264,6 +330,10 @@ export const calculateScores = (
     internalInconsistencies
   };
 
+  const roleValidationResult: RoleValidation = {
+      alerts: roleAlerts
+  };
+
   // 7. Horizons Global
   const horizonsFinal: Record<number, number> = {};
   let maxHScore = -1;
@@ -278,12 +348,27 @@ export const calculateScores = (
     }
   }
 
-  // 8. Blocks & Categories (Normalized 0-10)
-  const blocksFinal: Record<string, number> = {};
-  Object.keys(blockStats).forEach(k => blocksFinal[k] = Number((getAvg(blockStats[k]) * 2).toFixed(1)));
+  // 8. Blocks & Categories (Normalized 0-5 scale)
+  const blocksFinal: Record<string, BlockResult> = {};
+  Object.keys(blockStats).forEach(k => {
+    // Calculate dominant horizon for the block based on frequency
+    let maxFreq = -1;
+    let domHorizon = 0;
+    Object.entries(blockStats[k].horizonCounts).forEach(([h, count]) => {
+        if (count > maxFreq) {
+            maxFreq = count;
+            domHorizon = Number(h);
+        }
+    });
+
+    blocksFinal[k] = {
+        score: Number(getAvg(blockStats[k]).toFixed(2)),
+        horizon: domHorizon
+    };
+  });
 
   const categoriesFinal: Record<string, number> = {};
-  Object.keys(categoryStats).forEach(k => categoriesFinal[k] = Number((getAvg(categoryStats[k]) * 2).toFixed(1)));
+  Object.keys(categoryStats).forEach(k => categoriesFinal[k] = Number(getAvg(categoryStats[k]).toFixed(2)));
 
   return {
     total,
@@ -291,6 +376,7 @@ export const calculateScores = (
     roles: rolesFinal,
     horizons: horizonsFinal,
     consistency: consistencyResult,
+    roleValidation: roleValidationResult,
     predominantHorizon,
     blocks: blocksFinal,
     categories: categoriesFinal
