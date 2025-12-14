@@ -8,12 +8,15 @@ interface Props {
 const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
   const [name, setName] = React.useState('');
   const [email, setEmail] = React.useState('');
+  const [company, setCompany] = React.useState('');
+  const [role, setRole] = React.useState('');
+  const [whatsapp, setWhatsapp] = React.useState('');
   const [level, setLevel] = React.useState<LeadershipLevel | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name && email && level) {
-      onComplete({ name, email, level });
+    if (name && email && company && role && whatsapp && level) {
+      onComplete({ name, email, company, role, whatsapp, level });
     }
   };
 
@@ -36,10 +39,10 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
         {/* Header Text */}
         <div className="space-y-2">
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
-            Informações Pessoais
+            Informações Profissionais
           </h1>
           <p className="text-lg text-slate-400 leading-relaxed">
-            Vamos começar construindo o seu perfil. Preencha seus dados para calibrarmos a análise de liderança.
+            Preencha seus dados para calibrarmos a análise de liderança de acordo com seu contexto atual.
           </p>
         </div>
 
@@ -66,23 +69,87 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300">
-                E-mail Corporativo
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <span className="material-symbols-outlined">mail</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label htmlFor="email" className="block text-sm font-medium text-slate-300">
+                  E-mail Corporativo
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <span className="material-symbols-outlined">mail</span>
+                  </div>
+                  <input
+                    type="email"
+                    id="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="block w-full pl-10 pr-4 py-3 bg-surface-dark border border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-white placeholder-slate-500 transition-shadow sm:text-sm"
+                    placeholder="voce@empresa.com.br"
+                  />
                 </div>
-                <input
-                  type="email"
-                  id="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-4 py-3 bg-surface-dark border border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-white placeholder-slate-500 transition-shadow sm:text-sm"
-                  placeholder="voce@empresa.com.br"
-                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="whatsapp" className="block text-sm font-medium text-slate-300">
+                  WhatsApp
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <span className="material-symbols-outlined">chat</span>
+                  </div>
+                  <input
+                    type="tel"
+                    id="whatsapp"
+                    required
+                    value={whatsapp}
+                    onChange={(e) => setWhatsapp(e.target.value)}
+                    className="block w-full pl-10 pr-4 py-3 bg-surface-dark border border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-white placeholder-slate-500 transition-shadow sm:text-sm"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label htmlFor="company" className="block text-sm font-medium text-slate-300">
+                  Empresa
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <span className="material-symbols-outlined">business</span>
+                  </div>
+                  <input
+                    type="text"
+                    id="company"
+                    required
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    className="block w-full pl-10 pr-4 py-3 bg-surface-dark border border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-white placeholder-slate-500 transition-shadow sm:text-sm"
+                    placeholder="Nome da empresa"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="role" className="block text-sm font-medium text-slate-300">
+                  Cargo Atual
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <span className="material-symbols-outlined">badge</span>
+                  </div>
+                  <input
+                    type="text"
+                    id="role"
+                    required
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="block w-full pl-10 pr-4 py-3 bg-surface-dark border border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-white placeholder-slate-500 transition-shadow sm:text-sm"
+                    placeholder="Ex: Gerente de Operações"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -93,9 +160,24 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
             </label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[
-                { val: LeadershipLevel.L1, label: 'Primeira liderança (L1)', sub: 'Líder de si / Início', icon: 'person' },
-                { val: LeadershipLevel.L2, label: 'Liderança intermediária (L2)', sub: 'Gestão de pessoas', icon: 'groups' },
-                { val: LeadershipLevel.L3, label: 'Alta liderança (L3)', sub: 'Estratégia e cultura', icon: 'domain' },
+                { 
+                  val: LeadershipLevel.L1, 
+                  label: 'Primeira liderança (L1)', 
+                  sub: 'Lidera colaboradores individuais. Foco em operação, rotina e desenvolvimento técnico do time.', 
+                  icon: 'person' 
+                },
+                { 
+                  val: LeadershipLevel.L2, 
+                  label: 'Liderança intermediária (L2)', 
+                  sub: 'Lidera outros líderes. Foco em integração de áreas, tática e desenvolvimento de sucessores.', 
+                  icon: 'groups' 
+                },
+                { 
+                  val: LeadershipLevel.L3, 
+                  label: 'Alta liderança (L3)', 
+                  sub: 'Lidera a organização. Foco em estratégia, cultura, visão de longo prazo e sustentabilidade do negócio.', 
+                  icon: 'domain' 
+                },
               ].map((opt) => (
                 <label key={opt.val} className="relative cursor-pointer group">
                   <input
@@ -111,8 +193,8 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
                       <span className="material-symbols-outlined">{opt.icon}</span>
                     </div>
                     <div>
-                      <span className="block font-bold text-white text-sm">{opt.label}</span>
-                      <span className="text-xs text-slate-400">{opt.sub}</span>
+                      <span className="block font-bold text-white text-sm mb-1">{opt.label}</span>
+                      <span className="text-xs text-slate-400 leading-tight block">{opt.sub}</span>
                     </div>
                     <div className="absolute top-4 right-4 text-primary opacity-0 peer-checked:opacity-100 transition-opacity">
                       <span className="material-symbols-outlined filled">check_circle</span>
@@ -126,7 +208,7 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
           <div className="pt-6">
             <button
               type="submit"
-              disabled={!name || !email || !level}
+              disabled={!name || !email || !company || !role || !whatsapp || !level}
               className="w-full sm:w-auto min-w-[200px] flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 px-8 rounded-lg transition-all shadow-lg shadow-primary/20 hover:shadow-primary/40 focus:ring-4 focus:ring-primary/30"
             >
               <span>Avançar</span>
@@ -140,27 +222,25 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
       <div className="lg:col-span-5 order-1 lg:order-2 hidden lg:block">
         <div className="sticky top-24">
           <div className="relative overflow-hidden rounded-2xl aspect-[3/4] shadow-2xl">
-            {/* Background Image */}
+            {/* Background Image - Corporate Leader */}
             <div
               className="absolute inset-0 bg-cover bg-center transition-transform duration-700 hover:scale-105"
-              style={{ backgroundImage: 'url("https://picsum.photos/800/1200?grayscale&blur=2")' }}
+              style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=800")' }}
             >
-               <div className="absolute inset-0 bg-gradient-to-tr from-primary/40 to-purple-900/40 mix-blend-overlay"></div>
+               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
             </div>
-            {/* Gradient Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
             {/* Content */}
             <div className="relative h-full flex flex-col justify-end p-8 gap-6">
               <div className="size-12 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white border border-white/20">
-                <span className="material-symbols-outlined">format_quote</span>
+                <span className="material-symbols-outlined">psychology</span>
               </div>
               <div className="space-y-4">
                 <h3 className="text-white text-2xl font-bold leading-tight">
-                  "A liderança não é sobre ser o melhor. É sobre fazer todos os outros melhores."
+                  Análise de Perfil: Assessment que avalia o líder de maneira sistêmica
                 </h3>
                 <div className="flex items-center gap-3">
                   <div className="h-[1px] w-8 bg-primary"></div>
-                  <p className="text-slate-300 text-sm font-medium">Liderança Moderna</p>
+                  <p className="text-slate-300 text-sm font-medium">Liderança 360º</p>
                 </div>
               </div>
               <div className="pt-4 border-t border-white/10 grid grid-cols-2 gap-4">
@@ -169,7 +249,7 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
                   <p className="text-xs text-slate-400 uppercase tracking-wider">Pilares</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-white">15m</p>
+                  <p className="text-2xl font-bold text-white">1h</p>
                   <p className="text-xs text-slate-400 uppercase tracking-wider">Tempo Estimado</p>
                 </div>
               </div>

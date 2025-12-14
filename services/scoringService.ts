@@ -1,7 +1,7 @@
 
-import { Answers, Question, Dilemma, ScoreResult, LeadershipLevel, RoleResult, MatrixResult, ConsistencyResult, BlockResult, RoleValidation } from '../types';
+import { Answers, Question, Dilemma, ScoreResult, LeadershipLevel, RoleResult, MatrixResult, ConsistencyResult, BlockResult, RoleValidation, CategoryValidation } from '../types';
 
-// Map for Internal Consistency Checks
+// Map for Internal Consistency Checks (Specific Pairs Logic)
 const CONSISTENCY_MAP: Record<number, number[]> = {
   10: [6],      // Q10 (Evito conversas difíceis) vs Q6 (Lido com conflitos)
   22: [13, 14], // Q22 (Perco prazos/subestimo tempo) vs Q13/14 (Metas/Acompanhamento)
@@ -71,6 +71,9 @@ export const calculateScores = (
   
   // Validation Stats (Specific for Dilemmas vs Roles)
   const roleValidationStats: Record<string, { sum: number; count: number }> = {};
+  
+  // Cluster Validation Stats (For Internal Consistency by Category)
+  const categoryValidationStats: Record<string, number[]> = {};
 
   // Initialize standard roles
   ['Líder', 'Gestor', 'Estrategista', 'Intraempreendedor'].forEach(r => {
@@ -143,6 +146,12 @@ export const calculateScores = (
       const weight = getWeight(userLevel, q.horizon);
       
       processStat(val, weight, q.axis, q.role, q.horizon, q.block, q.category);
+
+      // Collect for Dynamic Cluster Consistency Check
+      if (!categoryValidationStats[q.category]) {
+          categoryValidationStats[q.category] = [];
+      }
+      categoryValidationStats[q.category].push(val);
     }
   });
 
@@ -167,6 +176,12 @@ export const calculateScores = (
           roleValidationStats[d.secondaryRole].count++;
       }
       // --- VALIDATION LOGIC END ---
+      
+      // Also Add Dilemmas to Category Cluster Check
+      if (!categoryValidationStats[d.category]) {
+          categoryValidationStats[d.category] = [];
+      }
+      categoryValidationStats[d.category].push(val);
     }
   });
 
@@ -294,8 +309,11 @@ export const calculateScores = (
     consistencyMsg = "Você apresenta tendências naturais em alguns papéis, mas mantém boa coerência geral. Há espaço para sofisticação em alguns papéis.";
   }
 
-  // 6. Internal Consistency Check (Questions Only for now)
+  // 6. Internal Consistency Check
   const internalInconsistencies: string[] = [];
+  const categoryDetails: Record<string, CategoryValidation> = {};
+
+  // A. Static Pairs Check (Existing)
   Object.keys(CONSISTENCY_MAP).forEach((key) => {
     const mainId = parseInt(key);
     const relatedIds = CONSISTENCY_MAP[mainId];
@@ -323,11 +341,31 @@ export const calculateScores = (
     }
   });
 
+  // B. Dynamic Cluster Check (Populate categoryDetails)
+  Object.entries(categoryValidationStats).forEach(([category, values]) => {
+      let spread = 0;
+      let status: 'Consistent' | 'Inconsistent' = 'Consistent';
+      
+      if (values.length > 1) {
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          spread = max - min;
+          // Threshold: Spread >= 3 (e.g., 1 vs 4, or 2 vs 5)
+          if (spread >= 3) {
+              status = 'Inconsistent';
+              internalInconsistencies.push(`Inconsistência no cluster "${category}": suas respostas variaram muito (entre ${min} e ${max}).`);
+          }
+      }
+
+      categoryDetails[category] = { status, spread };
+  });
+
   const consistencyResult: ConsistencyResult = {
     stdDev: Number(stdDev.toFixed(2)),
     status: consistencyStatus,
     message: consistencyMsg,
-    internalInconsistencies
+    internalInconsistencies: Array.from(new Set(internalInconsistencies)),
+    categoryDetails: categoryDetails // New Field
   };
 
   const roleValidationResult: RoleValidation = {

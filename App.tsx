@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Welcome from './components/Welcome';
 import PersonalInfo from './components/PersonalInfo';
 import Assessment from './components/Assessment';
@@ -11,14 +11,46 @@ import { calculateScores } from './services/scoringService';
 type Step = 'welcome' | 'info' | 'assessment' | 'results';
 
 const App: React.FC = () => {
-  const [step, setStep] = useState<Step>('welcome');
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [answers, setAnswers] = useState<Answers>({});
-  const [textAnswers, setTextAnswers] = useState<TextAnswers>({});
+  // Initialize state from localStorage if available
+  const [step, setStep] = useState<Step>(() => {
+    const saved = localStorage.getItem('app_step');
+    return (saved as Step) || 'welcome';
+  });
+  
+  const [profile, setProfile] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem('app_profile');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const [answers, setAnswers] = useState<Answers>(() => {
+    const saved = localStorage.getItem('app_answers');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const [textAnswers, setTextAnswers] = useState<TextAnswers>(() => {
+    const saved = localStorage.getItem('app_text_answers');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Effects to save state changes
+  useEffect(() => {
+    localStorage.setItem('app_step', step);
+  }, [step]);
+
+  useEffect(() => {
+    if (profile) localStorage.setItem('app_profile', JSON.stringify(profile));
+    else localStorage.removeItem('app_profile');
+  }, [profile]);
+
+  useEffect(() => {
+    localStorage.setItem('app_answers', JSON.stringify(answers));
+  }, [answers]);
+
+  useEffect(() => {
+    localStorage.setItem('app_text_answers', JSON.stringify(textAnswers));
+  }, [textAnswers]);
 
   // Logic: Filter questions based on Level.
-  // Requirement: "If level is L1, only L1 questions should be shown."
-  // Interpretation: Core questions (Comum) + Level specific questions.
   const filteredQuestions = useMemo(() => {
     if (!profile) return [];
     return allQuestions.filter(q => 
@@ -40,10 +72,16 @@ const App: React.FC = () => {
   };
 
   const handleRestart = () => {
+    // Clear State
     setProfile(null);
     setAnswers({});
     setTextAnswers({});
     setStep('welcome');
+    // Clear Storage
+    localStorage.removeItem('app_step');
+    localStorage.removeItem('app_profile');
+    localStorage.removeItem('app_answers');
+    localStorage.removeItem('app_text_answers');
   };
 
   const scores = useMemo(() => {
@@ -60,7 +98,7 @@ const App: React.FC = () => {
             <div className="size-8 flex items-center justify-center text-primary bg-primary/10 rounded-lg">
               <span className="material-symbols-outlined text-2xl">radar</span>
             </div>
-            <h2 className="text-white text-lg font-bold tracking-tight">Radar de Liderança</h2>
+            <h2 className="text-white text-lg font-bold tracking-tight">Radar de Liderança 360º</h2>
           </div>
           <div className="flex items-center gap-4">
              {profile && (
@@ -90,7 +128,14 @@ const App: React.FC = () => {
             />
         )}
         {step === 'results' && profile && scores && (
-            <Results results={scores} profile={profile} textAnswers={textAnswers} onRestart={handleRestart} />
+            <Results 
+              results={scores} 
+              profile={profile} 
+              textAnswers={textAnswers} 
+              answers={answers} // Pass raw answers to check dilemmas
+              dilemmas={dilemmas} // Pass dilemmas definition
+              onRestart={handleRestart} 
+            />
         )}
       </main>
 
@@ -98,7 +143,7 @@ const App: React.FC = () => {
       <footer className="w-full py-6 mt-auto border-t border-gray-800 bg-surface-darker">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-xs text-slate-500">
-            © 2024 Radar de Liderança. Todos os direitos reservados.
+            © 2024 Radar de Liderança 360º. Todos os direitos reservados.
           </p>
         </div>
       </footer>

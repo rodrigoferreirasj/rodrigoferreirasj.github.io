@@ -1,6 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ComposedChart, Scatter, ZAxis, Cell, ReferenceLine, BarChart, Bar, Legend, Area, AreaChart, ScatterChart } from 'recharts';
-import { ScoreResult, UserProfile, RoleResult, LeadershipLevel, TextAnswers, BlockResult } from '../types';
+import { ScoreResult, UserProfile, RoleResult, LeadershipLevel, TextAnswers, BlockResult, Answers, Dilemma, CategoryValidation } from '../types';
 import { descriptiveQuestions } from '../data/descriptive';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -9,6 +9,8 @@ interface Props {
   results: ScoreResult;
   profile: UserProfile;
   textAnswers: TextAnswers;
+  answers: Answers; // Need full answers to check dilemma scores
+  dilemmas: Dilemma[]; // Need dilemma info for texts
   onRestart: () => void;
 }
 
@@ -46,10 +48,31 @@ const CATEGORY_HORIZONS: Record<string, number> = {
   'Delegação & Empowerment': 1
 };
 
-const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) => {
+const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dilemmas, onRestart }) => {
   const { matrix, roles, horizons, consistency, predominantHorizon, categories, blocks, roleValidation } = results;
   const printRef = useRef<HTMLDivElement>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  
+  // State to toggle styles for PDF generation (Invert Colors)
+  const [printMode, setPrintMode] = useState(false);
+
+  // Identify Low Score Dilemmas (Score = 1)
+  const lowScoreDilemmas = dilemmas.filter(d => answers[d.id] === 1);
+
+  // Filter Consistent vs Inconsistent Categories
+  const consistentCategories = useMemo(() => {
+    const details = consistency.categoryDetails || ({} as Record<string, CategoryValidation>);
+    return (Object.entries(details) as [string, CategoryValidation][])
+        .filter(([_, data]) => data.status === 'Consistent')
+        .sort((a, b) => a[0].localeCompare(b[0]));
+  }, [consistency.categoryDetails]);
+
+  const inconsistentCategories = useMemo(() => {
+    const details = consistency.categoryDetails || ({} as Record<string, CategoryValidation>);
+    return (Object.entries(details) as [string, CategoryValidation][])
+        .filter(([_, data]) => data.status === 'Inconsistent')
+        .sort((a, b) => b[1].spread - a[1].spread); // Highest spread first
+  }, [consistency.categoryDetails]);
 
   // Horizon Colors
   const horizonColors: Record<number, string> = {
@@ -62,14 +85,44 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
 
   const predominantColor = horizonColors[predominantHorizon];
 
-  // Standard Dark Mode Chart Colors
-  const chartColors = {
-    text: '#9ca3af',
-    grid: '#374151',
-    tooltipBg: '#1f2937',
-    tooltipText: '#ffffff',
-    tooltipBorder: '#374151'
-  };
+  // Dynamic Styles based on Print Mode
+  const styles = useMemo(() => {
+    if (printMode) {
+      // Light Mode / PDF Mode
+      return {
+        bgMain: 'bg-white',
+        bgCard: 'bg-white border-gray-300',
+        bgSub: 'bg-gray-100',
+        textPrimary: 'text-gray-900',
+        textSecondary: 'text-gray-600',
+        border: 'border-gray-300',
+        chart: {
+          text: '#374151', // Dark Gray
+          grid: '#e5e7eb', // Light Gray
+          tooltipBg: '#ffffff',
+          tooltipText: '#000000',
+          tooltipBorder: '#ccc'
+        }
+      };
+    } else {
+      // Dark Mode (Default)
+      return {
+        bgMain: 'bg-background-dark',
+        bgCard: 'bg-surface-dark border-gray-800',
+        bgSub: 'bg-surface-darker',
+        textPrimary: 'text-white',
+        textSecondary: 'text-gray-400',
+        border: 'border-gray-800',
+        chart: {
+          text: '#9ca3af', // Light Gray
+          grid: '#374151', // Dark Gray
+          tooltipBg: '#1f2937',
+          tooltipText: '#ffffff',
+          tooltipBorder: '#374151'
+        }
+      };
+    }
+  }, [printMode]);
 
   // Data for Horizon Line Chart
   const horizonData = [
@@ -88,7 +141,6 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
   }));
 
   // Role Scatter Data Construction
-  // We need 6 points per role: Average (Big) + 5 Horizons (Small, colored)
   const roleNames = ['Líder', 'Gestor', 'Estrategista', 'Intraempreendedor'];
   const detailedRoleData: any[] = [];
   
@@ -96,25 +148,25 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
       const roleRes = roles[role];
       if(!roleRes) return;
 
-      // 1. Average Point (Larger)
+      // 1. Average Point
       detailedRoleData.push({
           roleName: role,
           score: roleRes.score,
           type: 'Average',
           horizon: -1,
-          size: 400, // Large size for average
-          color: '#ffffff', // White center
-          stroke: ['#3b82f6', '#10b981', '#f59e0b', '#ec4899'][idx % 4] // Role color border
+          size: 400,
+          color: printMode ? '#000000' : '#ffffff', // Black center for PDF
+          stroke: ['#3b82f6', '#10b981', '#f59e0b', '#ec4899'][idx % 4]
       });
 
-      // 2. Horizon Points (H0-H4)
+      // 2. Horizon Points
       Object.entries(roleRes.horizons).forEach(([h, score]) => {
            detailedRoleData.push({
                roleName: role,
                score: score,
                type: `H${h}`,
                horizon: Number(h),
-               size: 100, // Smaller size
+               size: 100,
                color: horizonColors[Number(h)],
                stroke: 'transparent'
            });
@@ -153,77 +205,180 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
     if (!printRef.current) return;
     
     setIsGeneratingPdf(true);
+    // 1. Switch to Light Mode
+    setPrintMode(true);
 
-    try {
-        const element = printRef.current;
-        const canvas = await html2canvas(element, {
-            scale: 2, 
-            backgroundColor: '#101322', // Standard Dark Background
-            useCORS: true,
-            logging: false
-        });
+    // Wait for render cycle to update styles
+    setTimeout(async () => {
+        try {
+            const element = printRef.current;
+            if (!element) return;
 
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4'
-        });
+            const canvas = await html2canvas(element, {
+                scale: 2, 
+                backgroundColor: '#ffffff', // White background
+                useCORS: true,
+                logging: false
+            });
 
-        const imgWidth = 210;
-        const pageHeight = 297;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        let heightLeft = imgHeight;
-        let position = 0;
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
 
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+            const imgWidth = 210;
+            const pageHeight = 297;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            let heightLeft = imgHeight;
+            let position = 0;
 
-        while (heightLeft >= 0) {
-            position = heightLeft - imgHeight;
-            pdf.addPage();
             pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
             heightLeft -= pageHeight;
-        }
 
-        pdf.save(`Radar_Lideranca_${profile.name.replace(/\s+/g, '_')}.pdf`);
-    } catch (error) {
-        console.error('Error generating PDF:', error);
-    } finally {
-        setIsGeneratingPdf(false);
-    }
+            while (heightLeft >= 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+
+            pdf.save(`Radar_Lideranca_${profile.name.replace(/\s+/g, '_')}.pdf`);
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+        } finally {
+            // 2. Revert to Dark Mode
+            setPrintMode(false);
+            setIsGeneratingPdf(false);
+        }
+    }, 500); // 500ms delay to ensure charts re-render with new colors
+  };
+
+  const handleDownloadCSV = () => {
+    // Helper to escape CSV fields
+    const escapeCsv = (str: string | number) => {
+        if (str === null || str === undefined) return '';
+        const stringValue = String(str);
+        if (stringValue.includes('"') || stringValue.includes(',') || stringValue.includes('\n')) {
+            return `"${stringValue.replace(/"/g, '""')}"`;
+        }
+        return stringValue;
+    };
+
+    const rows = [];
+
+    // 1. Profile & General
+    rows.push(['TIPO', 'DADO', 'VALOR', 'DETALHE']);
+    rows.push(['PERFIL', 'Nome', profile.name]);
+    rows.push(['PERFIL', 'Email', profile.email]);
+    rows.push(['PERFIL', 'Empresa', profile.company]);
+    rows.push(['PERFIL', 'Cargo', profile.role]);
+    rows.push(['PERFIL', 'WhatsApp', profile.whatsapp]);
+    rows.push(['PERFIL', 'Nível', profile.level]);
+    rows.push(['GERAL', 'Nota Final', results.total]);
+    rows.push(['GERAL', 'Quadrante Matriz', results.matrix.quadrantName, `P:${results.matrix.x} R:${results.matrix.y}`]);
+    rows.push(['GERAL', 'Consistência', results.consistency.status, results.consistency.message]);
+
+    // 2. Roles
+    Object.entries(roles).forEach(([role, data]) => {
+        const roleData = data as RoleResult;
+        rows.push(['PAPEL', role, roleData.score, `Horizontes: H0=${roleData.horizons[0]} H1=${roleData.horizons[1]} H2=${roleData.horizons[2]} H3=${roleData.horizons[3]} H4=${roleData.horizons[4]}`]);
+    });
+
+    // 3. Blocks
+    Object.entries(blocks).forEach(([block, data]) => {
+        const blockData = data as BlockResult;
+        rows.push(['BLOCO', block, blockData.score, `Horizonte Predominante: H${blockData.horizon}`]);
+    });
+
+    // 4. Categories
+    Object.entries(categories).forEach(([cat, score]) => {
+        rows.push(['CATEGORIA', cat, score]);
+    });
+    
+    // New: Category Consistency Details
+    const details = consistency.categoryDetails || ({} as Record<string, CategoryValidation>);
+    (Object.entries(details) as [string, CategoryValidation][]).forEach(([cat, data]) => {
+         rows.push(['CONSISTENCIA_CATEGORIA', cat, data.status, `Variação: ${data.spread}`]);
+    });
+
+    // 5. Horizons
+    Object.entries(horizons).forEach(([h, score]) => {
+        rows.push(['HORIZONTE', `H${h}`, score]);
+    });
+
+    // 6. Qualitative Questions (Text Answers)
+    descriptiveQuestions.forEach(q => {
+        rows.push(['REFLEXAO', q.category, textAnswers[q.id] || 'Não respondido', q.text]);
+    });
+
+    // 7. Dilemmas (Checks)
+    dilemmas.forEach(d => {
+        const score = answers[d.id];
+        const selectedOption = d.options.find(o => o.value === score);
+        rows.push([
+            'DILEMA', 
+            d.title, 
+            score, 
+            `Cenário: ${d.scenario} | Escolha: ${selectedOption?.text || ''}`
+        ]);
+        if (score === 1 && d.lowScoreRecommendation) {
+             rows.push(['RECOMENDACAO', d.title, 'BAIXA MATURIDADE', d.lowScoreRecommendation]);
+        }
+    });
+
+    // 8. Alerts
+    roleValidation.alerts.forEach(alert => {
+        rows.push(['ALERTA', 'Validação Papel', alert]);
+    });
+    results.consistency.internalInconsistencies.forEach(inc => {
+        rows.push(['ALERTA', 'Consistência Interna', inc]);
+    });
+
+    // Generate CSV Content
+    const csvContent = "data:text/csv;charset=utf-8," 
+        + rows.map(e => e.map(escapeCsv).join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Resultados_${profile.name.replace(/\s+/g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
-    <div className="w-full max-w-[1200px] mx-auto px-4 md:px-6 py-8 animate-fade-in text-white space-y-12">
+    <div className={`w-full max-w-[1200px] mx-auto px-4 md:px-6 py-8 animate-fade-in space-y-12 ${printMode ? 'text-gray-900' : 'text-white'}`}>
       
       {/* Wrapper ref for PDF generation */}
-      <div ref={printRef} className="space-y-12 p-4 sm:p-0 bg-background-dark">
+      <div ref={printRef} className={`space-y-12 p-4 sm:p-8 ${styles.bgMain} transition-colors duration-300`}>
 
         {/* 1. Header & Score */}
-        <div className="bg-surface-dark border border-gray-800 rounded-2xl p-8 flex flex-col md:flex-row gap-8 items-center justify-between shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
+        <div className={`${styles.bgCard} rounded-2xl p-8 flex flex-col md:flex-row gap-8 items-center justify-between shadow-xl relative overflow-hidden border`}>
+          {!printMode && <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[100px] pointer-events-none"></div>}
           <div className="z-10 max-w-2xl">
             <div className="flex items-center gap-3 mb-2">
-               <div className="px-3 py-1 rounded-full bg-surface-darker border border-gray-700 text-xs font-bold text-gray-400 uppercase tracking-wider">
+               <div className={`px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wider ${printMode ? 'bg-gray-200 border-gray-300 text-gray-700' : 'bg-surface-darker border-gray-700 text-gray-400'}`}>
                  {profile.level}
                </div>
-               <div className="px-3 py-1 rounded-full border border-gray-700 text-xs font-bold uppercase tracking-wider" style={{color: predominantColor, borderColor: predominantColor}}>
+               <div className={`px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wider`} style={{color: predominantColor, borderColor: predominantColor}}>
                  Horizonte H{predominantHorizon}
                </div>
             </div>
-            <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-4 text-white">
-              {profile.name.split(' ')[0]}, você é um <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-400">Líder {matrix.quadrantName}</span>
+            <h1 className={`text-4xl md:text-5xl font-black tracking-tight mb-4 ${styles.textPrimary}`}>
+              {profile.name.split(' ')[0]}, você é um <span className={`${printMode ? 'text-primary' : 'text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-400'}`}>Líder {matrix.quadrantName}</span>
             </h1>
-            <p className="text-lg text-gray-400 leading-relaxed">
+            <p className={`text-lg leading-relaxed ${styles.textSecondary}`}>
                Sua análise de consistência aponta um perfil <strong>{consistency.status}</strong>. 
                {consistency.message}
             </p>
           </div>
-          <div className="flex flex-col items-center z-10 bg-surface-darker/50 p-6 rounded-xl border border-gray-700/50 backdrop-blur-sm min-w-[200px]">
-             <span className="text-sm text-gray-400 uppercase font-bold tracking-widest mb-2">Nota Geral</span>
-             <span className="text-6xl font-black text-white">{results.total}</span>
-             <div className="w-full h-1 bg-gray-700 rounded-full mt-4 overflow-hidden">
+          <div className={`flex flex-col items-center z-10 p-6 rounded-xl border backdrop-blur-sm min-w-[200px] ${styles.bgSub} ${styles.border}`}>
+             <span className={`text-sm uppercase font-bold tracking-widest mb-2 ${styles.textSecondary}`}>Nota Geral</span>
+             <span className={`text-6xl font-black ${styles.textPrimary}`}>{results.total}</span>
+             <div className="w-full h-1 bg-gray-200 rounded-full mt-4 overflow-hidden">
                <div className="h-full bg-primary" style={{width: `${results.total}%`}}></div>
              </div>
           </div>
@@ -231,65 +386,67 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
 
         {/* 2. The 9-Box Matrix */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-surface-dark border border-gray-800 rounded-xl p-6 shadow-lg">
-            <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-white">
+          <div className={`${styles.bgCard} border rounded-xl p-6 shadow-lg`}>
+            <h3 className={`text-xl font-bold mb-6 flex items-center gap-2 ${styles.textPrimary}`}>
               <span className="material-symbols-outlined text-primary">grid_view</span>
               Matriz de Liderança (Pessoas x Resultados)
             </h3>
             
-            <div className="relative aspect-square w-full max-w-[500px] mx-auto border-2 border-gray-700 bg-surface-darker">
+            <div className={`relative aspect-square w-full max-w-[500px] mx-auto border-2 ${printMode ? 'bg-gray-100 border-gray-300' : 'bg-surface-darker border-gray-700'}`}>
               {/* Grid Lines Overlay */}
-              <div className="absolute top-0 bottom-0 border-r border-dashed border-gray-600 left-[50%] z-10"></div>
-              <div className="absolute top-0 bottom-0 border-r border-dashed border-gray-600 left-[80%] z-10"></div>
-              <div className="absolute left-0 right-0 border-t border-dashed border-gray-600 bottom-[50%] z-10"></div>
-              <div className="absolute left-0 right-0 border-t border-dashed border-gray-600 bottom-[80%] z-10"></div>
+              <div className={`absolute top-0 bottom-0 border-r border-dashed left-[50%] z-10 ${printMode ? 'border-gray-400' : 'border-gray-600'}`}></div>
+              <div className={`absolute top-0 bottom-0 border-r border-dashed left-[80%] z-10 ${printMode ? 'border-gray-400' : 'border-gray-600'}`}></div>
+              <div className={`absolute left-0 right-0 border-t border-dashed bottom-[50%] z-10 ${printMode ? 'border-gray-400' : 'border-gray-600'}`}></div>
+              <div className={`absolute left-0 right-0 border-t border-dashed bottom-[80%] z-10 ${printMode ? 'border-gray-400' : 'border-gray-600'}`}></div>
 
-              {/* Background Gradients (Red -> Yellow -> Green) */}
-              <div className="absolute inset-0 grid grid-cols-10 grid-rows-10 text-[10px] sm:text-xs text-white/80 font-bold uppercase pointer-events-none">
+              {/* Background Gradients (Red -> Yellow -> Green) - Simplified for Print */}
+              <div className={`absolute inset-0 grid grid-cols-10 grid-rows-10 text-[10px] sm:text-xs font-bold uppercase pointer-events-none ${printMode ? 'text-gray-500 opacity-60' : 'text-white/80'}`}>
                   
                   {/* Row 3 (High Results 4.0-5.0) */}
-                  <div className="col-span-5 row-span-2 border-b border-r border-white/5 flex items-center justify-center bg-gradient-to-tr from-yellow-600/30 to-green-500/20">7. Inspirador</div>
-                  <div className="col-span-3 row-span-2 border-b border-r border-white/5 flex items-center justify-center bg-gradient-to-tr from-green-600/30 to-green-500/40">8. Construtor</div>
-                  <div className="col-span-2 row-span-2 border-b border-white/5 flex items-center justify-center bg-green-500/50 text-white shadow-inner">9. Completo</div>
+                  <div className={`col-span-5 row-span-2 border-b border-r flex items-center justify-center ${printMode ? 'bg-green-100 border-gray-300' : 'border-white/5 bg-gradient-to-tr from-yellow-600/30 to-green-500/20'}`}>7. Inspirador</div>
+                  <div className={`col-span-3 row-span-2 border-b border-r flex items-center justify-center ${printMode ? 'bg-green-200 border-gray-300' : 'border-white/5 bg-gradient-to-tr from-green-600/30 to-green-500/40'}`}>8. Construtor</div>
+                  <div className={`col-span-2 row-span-2 border-b flex items-center justify-center ${printMode ? 'bg-green-300 border-gray-300' : 'border-white/5 bg-green-500/50 shadow-inner'}`}>9. Completo</div>
 
                   {/* Row 2 (Med Results 2.5-4.0) */}
-                  <div className="col-span-5 row-span-3 border-b border-r border-white/5 flex items-center justify-center bg-gradient-to-tr from-orange-600/30 to-yellow-600/20">4. Relacional</div>
-                  <div className="col-span-3 row-span-3 border-b border-r border-white/5 flex items-center justify-center bg-gradient-to-tr from-yellow-600/20 to-green-600/20">5. Equilibrado</div>
-                  <div className="col-span-2 row-span-3 border-b border-white/5 flex items-center justify-center bg-gradient-to-tr from-green-600/20 to-green-500/30">6. Estratégico</div>
+                  <div className={`col-span-5 row-span-3 border-b border-r flex items-center justify-center ${printMode ? 'bg-yellow-100 border-gray-300' : 'border-white/5 bg-gradient-to-tr from-orange-600/30 to-yellow-600/20'}`}>4. Relacional</div>
+                  <div className={`col-span-3 row-span-3 border-b border-r flex items-center justify-center ${printMode ? 'bg-yellow-50 border-gray-300' : 'border-white/5 bg-gradient-to-tr from-yellow-600/20 to-green-600/20'}`}>5. Equilibrado</div>
+                  <div className={`col-span-2 row-span-3 border-b flex items-center justify-center ${printMode ? 'bg-green-100 border-gray-300' : 'border-white/5 bg-gradient-to-tr from-green-600/20 to-green-500/30'}`}>6. Estratégico</div>
 
                    {/* Row 1 (Low Results 0-2.5) */}
-                  <div className="col-span-5 row-span-5 border-r border-white/5 flex items-center justify-center bg-gradient-to-tr from-red-600/40 to-orange-600/30">1. Técnico</div>
-                  <div className="col-span-3 row-span-5 border-r border-white/5 flex items-center justify-center bg-gradient-to-tr from-orange-600/30 to-yellow-600/30">2. Executor</div>
-                  <div className="col-span-2 row-span-5 flex items-center justify-center bg-gradient-to-tr from-yellow-600/20 to-green-600/10">3. Demandante</div>
+                  <div className={`col-span-5 row-span-5 border-r flex items-center justify-center ${printMode ? 'bg-red-100 border-gray-300' : 'border-white/5 bg-gradient-to-tr from-red-600/40 to-orange-600/30'}`}>1. Técnico</div>
+                  <div className={`col-span-3 row-span-5 border-r flex items-center justify-center ${printMode ? 'bg-orange-100 border-gray-300' : 'border-white/5 bg-gradient-to-tr from-orange-600/30 to-yellow-600/30'}`}>2. Executor</div>
+                  <div className={`col-span-2 row-span-5 flex items-center justify-center ${printMode ? 'bg-yellow-100' : 'bg-gradient-to-tr from-yellow-600/20 to-green-600/10'}`}>3. Demandante</div>
               </div>
 
               {/* The User Dot */}
               <div 
-                  className="absolute w-6 h-6 rounded-full border-2 border-white shadow-[0_0_15px_rgba(255,255,255,0.8)] transform -translate-x-1/2 translate-y-1/2 z-20 flex items-center justify-center group cursor-pointer transition-all duration-1000 ease-out"
+                  className={`absolute w-6 h-6 rounded-full border-2 border-white shadow-lg transform -translate-x-1/2 translate-y-1/2 z-20 flex items-center justify-center group cursor-pointer transition-all duration-1000 ease-out`}
                   style={{ 
                       left: `${matrixX}%`, 
                       bottom: `${matrixY}%`,
                       backgroundColor: predominantColor 
                   }}
               >
-                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-white">
-                      P:{matrix.x} | R:{matrix.y} (H{predominantHorizon})
-                  </div>
+                  {!printMode && (
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-white">
+                        P:{matrix.x} | R:{matrix.y} (H{predominantHorizon})
+                    </div>
+                  )}
               </div>
             </div>
-            <div className="flex justify-between mt-4 text-xs font-bold text-gray-400 uppercase">
+            <div className={`flex justify-between mt-4 text-xs font-bold uppercase ${styles.textSecondary}`}>
                 <span>Foco em Pessoas</span>
                 <span>Foco em Resultados</span>
             </div>
           </div>
 
           {/* 3. Roles Analysis (UPDATED TO 6 POINTS + TABLE) */}
-          <div className="bg-surface-dark border border-gray-800 rounded-xl p-6 shadow-lg flex flex-col">
-            <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-white">
+          <div className={`${styles.bgCard} border rounded-xl p-6 shadow-lg flex flex-col`}>
+            <h3 className={`text-xl font-bold mb-6 flex items-center gap-2 ${styles.textPrimary}`}>
               <span className="material-symbols-outlined text-accent-purple">diversity_3</span>
               Os 4 Papéis (Consistência: {consistency.stdDev})
             </h3>
-            <p className="text-xs text-gray-400 mb-4">
+            <p className={`text-xs mb-4 ${styles.textSecondary}`}>
                 O gráfico abaixo exibe a Média Geral (ponto maior) e a pontuação por horizonte (H0-H4) para cada papel.
             </p>
 
@@ -297,9 +454,9 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
             <div className="flex-grow flex flex-col justify-center mb-6">
               <ResponsiveContainer width="100%" height={300}>
                   <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
-                  <XAxis type="category" dataKey="roleName" name="Papel" tick={{fill: chartColors.text, fontSize: 12}} allowDuplicatedCategory={false} />
-                  <YAxis type="number" dataKey="score" name="Nota" domain={[0, 6]} tick={{fill: chartColors.text}} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={styles.chart.grid} vertical={false} />
+                  <XAxis type="category" dataKey="roleName" name="Papel" tick={{fill: styles.chart.text, fontSize: 12}} allowDuplicatedCategory={false} />
+                  <YAxis type="number" dataKey="score" name="Nota" domain={[0, 6]} tick={{fill: styles.chart.text}} />
                   <ZAxis type="number" dataKey="size" range={[80, 400]} />
                   <Tooltip 
                     cursor={{strokeDasharray: '3 3'}}
@@ -307,7 +464,7 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
                         if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
-                                <div className="bg-surface-darker border border-gray-700 p-2 rounded shadow text-xs text-white">
+                                <div className={`${styles.chart.tooltipBg} border p-2 rounded shadow text-xs`} style={{borderColor: styles.chart.tooltipBorder, color: styles.chart.tooltipText}}>
                                     <p className="font-bold">{data.roleName}</p>
                                     <p>{data.type === 'Average' ? 'Média Geral' : `Horizonte ${data.type}`}: {data.score}</p>
                                 </div>
@@ -332,14 +489,14 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
 
              {/* Role Validation Alerts */}
              {roleValidation && roleValidation.alerts.length > 0 && (
-                <div className="mb-6 p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
-                    <h4 className="flex items-center gap-2 font-bold text-yellow-500 mb-2 text-sm">
+                <div className={`mb-6 p-4 rounded-lg border ${printMode ? 'bg-yellow-50 border-yellow-200' : 'bg-yellow-900/20 border-yellow-700/50'}`}>
+                    <h4 className="flex items-center gap-2 font-bold text-yellow-600 mb-2 text-sm">
                         <span className="material-symbols-outlined text-lg">warning</span>
                         Atenção: Discrepâncias Identificadas
                     </h4>
                     <ul className="list-disc list-inside space-y-1">
                         {roleValidation.alerts.map((alert, idx) => (
-                            <li key={idx} className="text-xs text-gray-300">
+                            <li key={idx} className={`text-xs ${styles.textSecondary}`}>
                                 {alert}
                             </li>
                         ))}
@@ -349,23 +506,23 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
 
             {/* Detailed Data Table */}
             <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left text-gray-400">
-                    <thead className="text-xs text-gray-200 uppercase bg-surface-darker">
+                <table className={`w-full text-xs text-left ${styles.textSecondary}`}>
+                    <thead className={`text-xs uppercase ${styles.bgSub} ${styles.textPrimary}`}>
                         <tr>
                             <th className="px-3 py-2">Papel</th>
-                            <th className="px-3 py-2 text-center text-white font-bold">Média</th>
-                            <th className="px-3 py-2 text-center text-gray-400">H0</th>
-                            <th className="px-3 py-2 text-center text-blue-400">H1</th>
-                            <th className="px-3 py-2 text-center text-green-400">H2</th>
-                            <th className="px-3 py-2 text-center text-purple-400">H3</th>
-                            <th className="px-3 py-2 text-center text-yellow-400">H4</th>
+                            <th className={`px-3 py-2 text-center font-bold ${styles.textPrimary}`}>Média</th>
+                            <th className="px-3 py-2 text-center text-gray-500">H0</th>
+                            <th className="px-3 py-2 text-center text-blue-500">H1</th>
+                            <th className="px-3 py-2 text-center text-green-500">H2</th>
+                            <th className="px-3 py-2 text-center text-purple-500">H3</th>
+                            <th className="px-3 py-2 text-center text-yellow-600">H4</th>
                         </tr>
                     </thead>
                     <tbody>
                         {roleNames.map((role, i) => (
-                            <tr key={role} className="border-b border-gray-800">
-                                <td className="px-3 py-2 font-medium text-white">{role}</td>
-                                <td className="px-3 py-2 text-center font-bold text-white bg-white/5">{roles[role]?.score}</td>
+                            <tr key={role} className={`border-b ${styles.border}`}>
+                                <td className={`px-3 py-2 font-medium ${styles.textPrimary}`}>{role}</td>
+                                <td className={`px-3 py-2 text-center font-bold ${styles.textPrimary} ${styles.bgSub}`}>{roles[role]?.score}</td>
                                 <td className="px-3 py-2 text-center">{roles[role]?.horizons[0]}</td>
                                 <td className="px-3 py-2 text-center">{roles[role]?.horizons[1]}</td>
                                 <td className="px-3 py-2 text-center">{roles[role]?.horizons[2]}</td>
@@ -379,9 +536,38 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
           </div>
         </div>
 
-        {/* 4. Blocks (Temas) - NEW CHART */}
-        <div className="bg-surface-dark border border-gray-800 rounded-xl p-6 shadow-lg">
-            <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-white">
+        {/* 4. Recommendations for Low Score Dilemmas */}
+        {lowScoreDilemmas.length > 0 && (
+          <div className={`${styles.bgCard} border rounded-xl p-6 shadow-lg border-l-4 border-l-orange-500`}>
+             <h3 className={`text-xl font-bold mb-6 flex items-center gap-2 ${styles.textPrimary}`}>
+                <span className="material-symbols-outlined text-orange-500">school</span>
+                Recomendações de Desenvolvimento (Cenários Críticos)
+            </h3>
+            <p className={`text-sm mb-6 ${styles.textSecondary}`}>
+              Identificamos oportunidades de melhoria baseadas nas suas respostas aos cenários de dilema. 
+              Abaixo estão recomendações específicas para fortalecer sua tomada de decisão.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {lowScoreDilemmas.map(dilemma => (
+                  <div key={dilemma.id} className={`p-5 rounded-lg border flex flex-col gap-3 ${styles.bgSub} ${styles.border}`}>
+                      <div className="flex justify-between items-start">
+                          <h4 className={`font-bold text-base ${styles.textPrimary}`}>{dilemma.title}</h4>
+                          <span className="px-2 py-1 bg-red-100 text-red-600 text-xs font-bold rounded uppercase">Baixa Maturidade</span>
+                      </div>
+                      <p className={`text-xs italic ${styles.textSecondary}`}>"{dilemma.scenario}"</p>
+                      <div className={`h-px my-1 ${printMode ? 'bg-gray-300' : 'bg-gray-700/50'}`}></div>
+                      <p className={`text-sm leading-relaxed ${printMode ? 'text-gray-800' : 'text-gray-300'}`}>
+                        {dilemma.lowScoreRecommendation || "Recomendação não disponível para este cenário."}
+                      </p>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* 5. Blocks (Temas) */}
+        <div className={`${styles.bgCard} border rounded-xl p-6 shadow-lg`}>
+            <h3 className={`text-xl font-bold mb-6 flex items-center gap-2 ${styles.textPrimary}`}>
                 <span className="material-symbols-outlined text-pink-500">category</span>
                 Análise por Blocos de Competência
             </h3>
@@ -389,12 +575,12 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
                 <div className="h-[400px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart layout="vertical" data={blockChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} horizontal={false}/>
-                            <XAxis type="number" domain={[0, 5]} tick={{fill: chartColors.text}} />
-                            <YAxis type="category" dataKey="name" width={150} tick={{fill: chartColors.text, fontSize: 11}} />
+                            <CartesianGrid strokeDasharray="3 3" stroke={styles.chart.grid} horizontal={false}/>
+                            <XAxis type="number" domain={[0, 5]} tick={{fill: styles.chart.text}} />
+                            <YAxis type="category" dataKey="name" width={150} tick={{fill: styles.chart.text, fontSize: 11}} />
                             <Tooltip 
                                 cursor={{fill: 'transparent'}}
-                                contentStyle={{backgroundColor: chartColors.tooltipBg, borderColor: chartColors.tooltipBorder, color: chartColors.tooltipText}}
+                                contentStyle={{backgroundColor: styles.chart.tooltipBg, borderColor: styles.chart.tooltipBorder, color: styles.chart.tooltipText}}
                             />
                             <Bar dataKey="score" name="Pontuação" radius={[0, 4, 4, 0]}>
                                 {blockChartData.map((entry, index) => (
@@ -405,25 +591,25 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
                     </ResponsiveContainer>
                 </div>
                 <div className="flex flex-col gap-4">
-                     <div className="p-4 bg-surface-darker rounded-lg border border-gray-700">
-                         <h4 className="font-bold text-white mb-2 text-sm uppercase">Legenda de Horizontes</h4>
+                     <div className={`p-4 rounded-lg border ${styles.bgSub} ${styles.border}`}>
+                         <h4 className={`font-bold mb-2 text-sm uppercase ${styles.textPrimary}`}>Legenda de Horizontes</h4>
                          <div className="grid grid-cols-1 gap-2">
                              {Object.entries(horizonColors).map(([h, color]) => (
                                  <div key={h} className="flex items-center gap-2">
                                      <div className="w-3 h-3 rounded-full" style={{backgroundColor: color}}></div>
-                                     <span className="text-sm text-gray-300">H{h} - {horizonData[Number(h)].desc}</span>
+                                     <span className={`text-sm ${styles.textSecondary}`}>H{h} - {horizonData[Number(h)].desc}</span>
                                  </div>
                              ))}
                          </div>
                      </div>
-                     <div className="p-4 bg-surface-darker rounded-lg border border-gray-700 flex-grow">
-                         <h4 className="font-bold text-white mb-2 text-sm uppercase">Destaque</h4>
-                         <p className="text-sm text-gray-400">
+                     <div className={`p-4 rounded-lg border flex-grow ${styles.bgSub} ${styles.border}`}>
+                         <h4 className={`font-bold mb-2 text-sm uppercase ${styles.textPrimary}`}>Destaque</h4>
+                         <p className={`text-sm ${styles.textSecondary}`}>
                              Seu bloco mais forte é <strong>{blockChartData[0]?.name}</strong> com nota <strong>{blockChartData[0]?.score}</strong>.
                              Isso indica uma facilidade natural em lidar com desafios dessa natureza.
                          </p>
-                         <div className="h-px bg-gray-700 my-3"></div>
-                         <p className="text-sm text-gray-400">
+                         <div className={`h-px my-3 ${printMode ? 'bg-gray-300' : 'bg-gray-700'}`}></div>
+                         <p className={`text-sm ${styles.textSecondary}`}>
                              Atenção para <strong>{blockChartData[blockChartData.length - 1]?.name}</strong> (Nota: {blockChartData[blockChartData.length - 1]?.score}), 
                              que pode representar um gargalo para seu desenvolvimento atual.
                          </p>
@@ -432,10 +618,10 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
             </div>
         </div>
 
-        {/* 5. Maturity Comparison (Horizons) - RESTORED TO SINGLE AREA CHART */}
-        <div className="bg-surface-dark border border-gray-800 rounded-xl p-6 shadow-lg">
-           <h3 className="text-xl font-bold mb-2 text-white">Maturidade Temporal (H0-H4)</h3>
-           <p className="text-sm text-gray-400 mb-6">Como você distribui sua atenção entre presente, curto, médio e longo prazo</p>
+        {/* 6. Maturity Comparison (Horizons) - RESTORED TO SINGLE AREA CHART */}
+        <div className={`${styles.bgCard} border rounded-xl p-6 shadow-lg`}>
+           <h3 className={`text-xl font-bold mb-2 ${styles.textPrimary}`}>Maturidade Temporal (H0-H4)</h3>
+           <p className={`text-sm mb-6 ${styles.textSecondary}`}>Como você distribui sua atenção entre presente, curto, médio e longo prazo</p>
            
            <div className="h-[300px] w-full mb-8">
               <ResponsiveContainer width="100%" height="100%">
@@ -446,13 +632,13 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
                               <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
                           </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
-                      <XAxis dataKey="name" tick={{fill: chartColors.text}} />
-                      <YAxis domain={[0, 5]} tick={{fill: chartColors.text}} />
-                      <Tooltip contentStyle={{backgroundColor: chartColors.tooltipBg, borderColor: chartColors.tooltipBorder, color: chartColors.tooltipText}} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={styles.chart.grid} />
+                      <XAxis dataKey="name" tick={{fill: styles.chart.text}} />
+                      <YAxis domain={[0, 5]} tick={{fill: styles.chart.text}} />
+                      <Tooltip contentStyle={{backgroundColor: styles.chart.tooltipBg, borderColor: styles.chart.tooltipBorder, color: styles.chart.tooltipText}} />
                       <Area type="monotone" dataKey="ideal" stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" fill="transparent" name={`Curva Ideal ${profile.level}`} />
                       <Area type="monotone" dataKey="score" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorUser)" name="Sua Curva" />
-                      <Legend />
+                      <Legend wrapperStyle={{ color: styles.chart.text }}/>
                   </AreaChart>
               </ResponsiveContainer>
            </div>
@@ -462,45 +648,45 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
                {comparisonData.map((h, i) => {
                    const diff = h.score - h.ideal;
                    const status = diff > 0.5 ? 'Acima do ideal' : diff < -0.5 ? 'Abaixo do ideal' : 'Dentro do ideal';
-                   const statusColor = diff > 0.5 ? 'text-blue-400' : diff < -0.5 ? 'text-orange-400' : 'text-green-400';
+                   const statusColor = diff > 0.5 ? 'text-blue-500' : diff < -0.5 ? 'text-orange-500' : 'text-green-500';
                    const icon = diff > 0.5 ? 'arrow_upward' : diff < -0.5 ? 'arrow_downward' : 'check';
                    
                    return (
-                      <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-surface-darker border border-gray-700">
+                      <div key={i} className={`flex items-center justify-between p-4 rounded-xl border ${styles.bgSub} ${styles.border}`}>
                           <div className="flex items-center gap-4">
                               <div className={`size-10 rounded-full flex items-center justify-center font-bold text-white`} style={{backgroundColor: horizonColors[i]}}>
                                   {h.name}
                               </div>
                               <div>
-                                  <h4 className="font-bold text-white text-sm">{h.desc}</h4>
+                                  <h4 className={`font-bold text-sm ${styles.textPrimary}`}>{h.desc}</h4>
                                   <div className={`flex items-center gap-1 text-xs mt-1 ${statusColor}`}>
                                       <span className="material-symbols-outlined text-[10px]">{icon}</span>
                                       <span>Ideal: {h.ideal} • {status}</span>
                                   </div>
                               </div>
                           </div>
-                          <div className="text-xl font-bold text-white">{h.score.toFixed(1)}/5</div>
+                          <div className={`text-xl font-bold ${styles.textPrimary}`}>{h.score.toFixed(1)}/5</div>
                       </div>
                    );
                })}
            </div>
         </div>
 
-        {/* 6. Detailed Categories Chart - REPLACED TABLE WITH CHART */}
-        <div className="bg-surface-dark border border-gray-800 rounded-xl p-6 shadow-lg overflow-hidden">
-             <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-white">
+        {/* 7. Detailed Categories Chart - REPLACED TABLE WITH CHART */}
+        <div className={`${styles.bgCard} border rounded-xl p-6 shadow-lg overflow-hidden`}>
+             <h3 className={`text-xl font-bold mb-6 flex items-center gap-2 ${styles.textPrimary}`}>
                 <span className="material-symbols-outlined text-cyan-400">bar_chart</span>
                 Detalhamento por Categoria
             </h3>
             <div className="h-[600px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart layout="vertical" data={categoryChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} horizontal={false}/>
-                        <XAxis type="number" domain={[0, 5]} tick={{fill: chartColors.text}} />
-                        <YAxis type="category" dataKey="name" width={200} tick={{fill: chartColors.text, fontSize: 11}} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={styles.chart.grid} horizontal={false}/>
+                        <XAxis type="number" domain={[0, 5]} tick={{fill: styles.chart.text}} />
+                        <YAxis type="category" dataKey="name" width={200} tick={{fill: styles.chart.text, fontSize: 11}} />
                         <Tooltip 
                             cursor={{fill: 'transparent'}}
-                            contentStyle={{backgroundColor: chartColors.tooltipBg, borderColor: chartColors.tooltipBorder, color: chartColors.tooltipText}}
+                            contentStyle={{backgroundColor: styles.chart.tooltipBg, borderColor: styles.chart.tooltipBorder, color: styles.chart.tooltipText}}
                         />
                         <Bar dataKey="score" name="Nota" radius={[0, 4, 4, 0]}>
                             {categoryChartData.map((entry, index) => (
@@ -512,23 +698,61 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
             </div>
         </div>
 
-        {/* 7. Qualitative Analysis (Text Answers) - UPDATED TO SHOW ALL + PLACEHOLDERS */}
-        <div className="bg-surface-dark border border-gray-800 rounded-xl p-6 shadow-lg">
-            <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-white">
-                <span className="material-symbols-outlined text-white">edit_note</span>
+        {/* New Section: Consistency Details Columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Consistent */}
+            <div className={`${styles.bgCard} border rounded-xl p-6 shadow-lg`}>
+                <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${styles.textPrimary} text-green-500`}>
+                <span className="material-symbols-outlined">check_circle</span>
+                Consistência Alta
+                </h3>
+                <p className={`text-xs mb-4 ${styles.textSecondary}`}>Temas onde suas respostas foram coerentes.</p>
+                <div className="flex flex-wrap gap-2">
+                {consistentCategories.map(([cat]) => (
+                    <span key={cat} className={`px-2 py-1 rounded text-xs border ${printMode ? 'bg-green-50 border-green-200 text-green-800' : 'bg-green-900/20 border-green-800 text-green-400'}`}>
+                    {cat}
+                    </span>
+                ))}
+                {consistentCategories.length === 0 && <span className="text-xs text-gray-500">Nenhum item.</span>}
+                </div>
+            </div>
+
+            {/* Inconsistent */}
+            <div className={`${styles.bgCard} border rounded-xl p-6 shadow-lg`}>
+                <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${styles.textPrimary} text-orange-500`}>
+                <span className="material-symbols-outlined">warning</span>
+                Atenção à Consistência
+                </h3>
+                <p className={`text-xs mb-4 ${styles.textSecondary}`}>Temas com variação significativa nas respostas.</p>
+                <div className="space-y-2">
+                {inconsistentCategories.map(([cat, data]) => (
+                    <div key={cat} className={`flex justify-between items-center p-2 rounded border ${printMode ? 'bg-orange-50 border-orange-200' : 'bg-orange-900/10 border-orange-800/50'}`}>
+                    <span className={`text-xs font-medium ${printMode ? 'text-gray-800' : 'text-gray-300'}`}>{cat}</span>
+                    <span className="text-xs font-bold text-orange-500">Var: {data.spread}</span>
+                    </div>
+                ))}
+                {inconsistentCategories.length === 0 && <span className="text-xs text-gray-500">Nenhuma inconsistência crítica.</span>}
+                </div>
+            </div>
+        </div>
+
+        {/* 8. Qualitative Analysis (Text Answers) - UPDATED TO SHOW ALL + PLACEHOLDERS */}
+        <div className={`${styles.bgCard} border rounded-xl p-6 shadow-lg`}>
+            <h3 className={`text-xl font-bold mb-6 flex items-center gap-2 ${styles.textPrimary}`}>
+                <span className="material-symbols-outlined text-gray-400">edit_note</span>
                 Suas Reflexões
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {descriptiveQuestions.map((question) => {
                     const answer = textAnswers[question.id];
                     return (
-                        <div key={question.id} className="p-4 bg-surface-darker rounded-lg border border-gray-700 h-full">
+                        <div key={question.id} className={`p-4 rounded-lg border h-full ${styles.bgSub} ${styles.border}`}>
                             <h4 className="text-sm font-bold text-primary mb-2 flex items-center gap-2">
                                 <span className="material-symbols-outlined text-base">chat_bubble</span>
                                 {question.theme} • {question.category}
                             </h4>
-                            <p className="text-white font-medium mb-3 text-sm border-b border-gray-700 pb-2">{question.text}</p>
-                            <p className={`text-sm italic ${answer ? 'text-gray-300' : 'text-gray-600'}`}>
+                            <p className={`font-medium mb-3 text-sm border-b pb-2 ${styles.textPrimary} ${printMode ? 'border-gray-300' : 'border-gray-700'}`}>{question.text}</p>
+                            <p className={`text-sm italic ${answer ? styles.textSecondary : 'text-gray-400/50'}`}>
                                 "{answer || 'Não respondido'}"
                             </p>
                         </div>
@@ -553,10 +777,17 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart }) 
                 </>
             ) : (
                 <>
-                    <span className="material-symbols-outlined">download</span>
-                    Baixar Relatório Completo
+                    <span className="material-symbols-outlined">picture_as_pdf</span>
+                    Baixar PDF (Versão Clara)
                 </>
             )}
+        </button>
+        <button
+            onClick={handleDownloadCSV}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all"
+        >
+            <span className="material-symbols-outlined">table_view</span>
+            Baixar CSV (Excel)
         </button>
         <button
             onClick={onRestart}

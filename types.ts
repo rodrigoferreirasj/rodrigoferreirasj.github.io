@@ -37,6 +37,7 @@ export interface Dilemma {
   secondaryRole?: string; // Secondary Role for validation
   horizon: HorizonLevel; // Added specific horizon
   options: DilemmaOption[];
+  lowScoreRecommendation?: string; // Recommendation text for low score (1)
 }
 
 export interface DescriptiveQuestion {
@@ -49,6 +50,9 @@ export interface DescriptiveQuestion {
 export interface UserProfile {
   name: string;
   email: string;
+  company: string;   // New Field
+  role: string;      // New Field
+  whatsapp: string;  // New Field
   level: LeadershipLevel;
 }
 
@@ -73,11 +77,17 @@ export interface MatrixResult {
   quadrantName: string;
 }
 
+export interface CategoryValidation {
+  status: 'Consistent' | 'Inconsistent';
+  spread: number; // Max - Min difference
+}
+
 export interface ConsistencyResult {
   stdDev: number;
   status: 'Consistente' | 'Balanceado' | 'Desbalanceado' | 'Fragmentado' | 'Contraditório';
   message: string;
   internalInconsistencies: string[]; // List of specific warnings based on question mapping
+  categoryDetails: Record<string, CategoryValidation>; // New detailed breakdown
 }
 
 export interface RoleValidation {
