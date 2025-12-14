@@ -79,9 +79,21 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
           
+          {/* 360 Toggle Button (Moved to Top) */}
+          <div className="flex justify-center md:justify-start">
+                 <button
+                    type="button"
+                    onClick={toggle360}
+                    className={`w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-lg border-2 transition-all font-bold ${is360 ? 'bg-purple-600 border-purple-600 text-white' : 'border-purple-600 text-purple-400 hover:bg-purple-600/10'}`}
+                 >
+                    <span className="material-symbols-outlined">360</span>
+                    {is360 ? 'Modo Avaliação 360º Ativo' : 'Ativar Avaliação 360º (Avaliar outro líder)'}
+                 </button>
+          </div>
+
           {/* 360 Target Name Field */}
           {is360 && (
-              <div className="space-y-2 p-4 border border-primary/50 bg-primary/5 rounded-lg">
+              <div className="space-y-2 p-4 border border-primary/50 bg-primary/5 rounded-lg animate-fade-in">
                 <label htmlFor="targetName" className="block text-sm font-bold text-white">
                   Nome do Líder Avaliado
                 </label>
@@ -102,7 +114,7 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
               </div>
           )}
 
-          <div className={`grid grid-cols-1 gap-6 ${is360 ? 'opacity-70' : ''}`}>
+          <div className={`grid grid-cols-1 gap-6 ${is360 ? 'opacity-70 transition-opacity' : ''}`}>
             <div className="space-y-2">
               <label htmlFor="fullname" className="block text-sm font-medium text-slate-300">
                 Seu Nome Completo {is360 && <span className="text-xs text-gray-500">(Opcional)</span>}
@@ -261,18 +273,6 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
                 </div>
                 </>
             )}
-            
-            {/* 360 Toggle Button */}
-            <div className="pt-4 flex justify-center md:justify-start">
-                 <button
-                    type="button"
-                    onClick={toggle360}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-lg border-2 transition-all font-bold ${is360 ? 'bg-purple-600 border-purple-600 text-white' : 'border-purple-600 text-purple-400 hover:bg-purple-600/10'}`}
-                 >
-                    <span className="material-symbols-outlined">360</span>
-                    {is360 ? 'Modo Avaliação 360º Ativo' : 'Ativar Avaliação 360º (Avaliar outro líder)'}
-                 </button>
-            </div>
           </div>
 
           <div className="pt-6">

@@ -60,9 +60,14 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
 
   const handleQuestionAnswer = (score: number) => {
     if (!currentQuestion) return;
-    setAnswers(prev => ({ ...prev, [currentQuestion.id]: score }));
+    
+    // Create the new answers object immediately
+    const newAnswers = { ...answers, [currentQuestion.id]: score };
+    setAnswers(newAnswers);
+
+    // Pass the FRESH answers to handleNext via the timeout
     setTimeout(() => {
-        handleNext();
+        handleNext(newAnswers);
     }, 250);
   };
 
@@ -70,9 +75,10 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
 
   const handleDilemmaAnswer = (score: number) => {
     if (!currentDilemma) return;
-    setAnswers(prev => ({ ...prev, [currentDilemma.id]: score }));
+    const newAnswers = { ...answers, [currentDilemma.id]: score };
+    setAnswers(newAnswers);
     setTimeout(() => {
-        handleNext();
+        handleNext(newAnswers);
     }, 250);
   };
 
@@ -85,7 +91,9 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
 
   // --- Navigation Logic ---
 
-  const handleNext = () => {
+  // Accept optional updatedAnswers to ensure we use the latest state inside timeouts
+  const handleNext = (updatedAnswers?: Answers) => {
+    const currentAnswersState = updatedAnswers || answers;
     setDirection('next');
     
     if (phase === 'questions') {
@@ -94,7 +102,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
       } else {
         // Change logic for 360: Skip dilemmas and descriptive
         if (is360) {
-            onComplete(answers, textAnswers);
+            onComplete(currentAnswersState, textAnswers);
         } else {
             // Transition to Dilemmas
             setPhase('dilemmas');
@@ -114,7 +122,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
       if (currentDescIndex < shuffledDescriptive.length - 1) {
         setCurrentDescIndex(prev => prev + 1);
       } else {
-        onComplete(answers, textAnswers);
+        onComplete(currentAnswersState, textAnswers);
       }
     }
   };
@@ -162,7 +170,10 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
   const progress = ((currentStepGlobal + 1) / totalSteps) * 100;
 
   // Guard against undefined during render
-  if (phase === 'questions' && !currentQuestion) return <div className="text-white text-center mt-20">Carregando pergunta...</div>;
+  if (phase === 'questions' && !currentQuestion) {
+      // Fallback in case of index sync issues, usually shouldn't happen with the fix above
+      return <div className="text-white text-center mt-20">Processando respostas...</div>;
+  }
 
   const currentAnswer = phase === 'questions' && currentQuestion
     ? answers[currentQuestion.id] 
@@ -348,7 +359,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
         </button>
 
         <button 
-          onClick={handleNext}
+          onClick={() => handleNext()}
           disabled={phase !== 'descriptive' && currentAnswer === undefined}
           className="group flex items-center gap-2 px-8 py-3 rounded-lg bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-[0_0_20px_rgba(19,55,236,0.4)] hover:shadow-[0_0_25px_rgba(19,55,236,0.6)] transition-all transform hover:-translate-y-0.5"
         >

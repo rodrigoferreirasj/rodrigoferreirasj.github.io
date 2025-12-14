@@ -113,7 +113,7 @@ const App: React.FC = () => {
              {profile && (
                  <div className="hidden sm:flex items-center gap-2">
                     <span className="text-xs text-gray-400">
-                        {profile.is360 ? 'Avaliando:' : 'Logado como'}
+                        {profile.is360 ? 'Avaliando:' : 'Líder:'}
                     </span>
                     <span className="text-sm font-bold">
                         {profile.is360 ? profile.targetLeaderName : profile.name}

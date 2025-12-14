@@ -1,9 +1,10 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ComposedChart, Scatter, ZAxis, Cell, ReferenceLine, BarChart, Bar, Legend, Area, AreaChart, ScatterChart } from 'recharts';
 import { ScoreResult, UserProfile, RoleResult, LeadershipLevel, TextAnswers, BlockResult, Answers, Dilemma, CategoryValidation } from '../types';
 import { descriptiveQuestions } from '../data/descriptive';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import emailjs from '@emailjs/browser';
 
 interface Props {
   results: ScoreResult;
@@ -55,6 +56,79 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
   
   // State to toggle styles for PDF generation (Invert Colors)
   const [printMode, setPrintMode] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+
+  // EMAILJS CONFIGURATION
+  const EMAILJS_SERVICE_ID = "service_jmkr2dn";
+  const EMAILJS_TEMPLATE_ID = "assessment_template";
+  const EMAILJS_PUBLIC_KEY = "dh8MnuS1CHuhkCk4X";
+
+  // AUTOMATIC EMAIL SENDING EFFECT (OPTION B: HTML SUMMARY)
+  useEffect(() => {
+    const sendResultsEmail = async () => {
+        if (emailStatus !== 'idle') return; // Prevent double sending
+
+        setEmailStatus('sending');
+
+        try {
+            // 1. Format Categories String (Papéis + Blocos)
+            const rolesText = Object.entries(roles)
+                .map(([r, data]) => `   - ${r}: ${(data as RoleResult).score.toFixed(1)}`)
+                .join('\n');
+            
+            const blocksText = Object.entries(blocks)
+                .map(([b, data]) => `   - ${b}: ${(data as BlockResult).score.toFixed(1)}`)
+                .join('\n');
+
+            const categoriesString = `[PAPÉIS DE LIDERANÇA]\n${rolesText}\n\n[BLOCOS DE COMPETÊNCIA]\n${blocksText}`;
+
+            // 2. Format Feedback String (Quadrante + Consistência)
+            const feedbackString = `QUADRANTE: ${matrix.quadrantName} (Pessoas: ${matrix.x} | Resultados: ${matrix.y})\n\nCONSISTÊNCIA: ${consistency.status}\n\nANÁLISE:\n${consistency.message}`;
+
+            // 3. Map to specific template fields
+            const templateParams = {
+                // Config Fields
+                to_email: "rodrigo@pontosfortes.com.br",
+                
+                // === DADOS DO USUÁRIO ===
+                user_name: profile.name,
+                user_company: profile.company,
+                user_origem: profile.is360 ? "Radar de Liderança 360" : "Radar de Liderança (Auto)",
+                user_position: profile.role,
+                user_email: profile.email,
+                user_whatsapp: profile.whatsapp,
+
+                // === RESULTADOS DO DIAGNÓSTICO ===
+                timestamp: new Date().toLocaleString('pt-BR'),
+                assessment_version: "v1.0 (Web)",
+                assessment_score: `${results.total}/100`,
+
+                // === PONTUAÇÃO POR CATEGORIA ===
+                assessment_categories: categoriesString,
+
+                // === FEEDBACK GERADO ===
+                assessment_feedback: feedbackString
+            };
+
+            await emailjs.send(
+                EMAILJS_SERVICE_ID, 
+                EMAILJS_TEMPLATE_ID, 
+                templateParams, 
+                EMAILJS_PUBLIC_KEY
+            );
+
+            setEmailStatus('sent');
+            console.log("Email enviado com sucesso via EmailJS!");
+
+        } catch (error) {
+            console.error("Erro ao enviar email via EmailJS:", error);
+            setEmailStatus('error');
+        }
+    };
+
+    // Trigger automation on mount
+    sendResultsEmail();
+  }, []); // Empty dependency array = runs once on mount
 
   // Identify Low Score Dilemmas (Score = 1)
   const lowScoreDilemmas = dilemmas.filter(d => answers[d.id] === 1);
@@ -201,6 +275,7 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
     horizon: (data as BlockResult).horizon
   })).sort((a, b) => b.score - a.score);
 
+  // MANUAL PDF DOWNLOAD
   const handleDownloadPDF = async () => {
     if (!printRef.current) return;
     
@@ -255,107 +330,58 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
     }, 500); // 500ms delay to ensure charts re-render with new colors
   };
 
-  const handleDownloadCSV = () => {
-    // Helper to escape CSV fields
-    const escapeCsv = (str: string | number) => {
-        if (str === null || str === undefined) return '';
-        const stringValue = String(str);
-        if (stringValue.includes('"') || stringValue.includes(',') || stringValue.includes('\n')) {
-            return `"${stringValue.replace(/"/g, '""')}"`;
-        }
-        return stringValue;
-    };
+  // JSON DOWNLOAD (Replaces CSV)
+  const handleDownloadJSON = () => {
+      const exportData = {
+          metadata: {
+              version: "1.0",
+              date: new Date().toISOString(),
+              app: "Leadership AI Assessment"
+          },
+          profile,
+          results,
+          answers: {
+              scale: answers,
+              text: textAnswers
+          }
+      };
 
-    const rows = [];
-
-    // 1. Profile & General
-    rows.push(['TIPO', 'DADO', 'VALOR', 'DETALHE']);
-    rows.push(['PERFIL', 'Nome', profile.name]);
-    rows.push(['PERFIL', 'Email', profile.email]);
-    rows.push(['PERFIL', 'Empresa', profile.company]);
-    rows.push(['PERFIL', 'Cargo', profile.role]);
-    rows.push(['PERFIL', 'WhatsApp', profile.whatsapp]);
-    rows.push(['PERFIL', 'Nível', profile.level]);
-    rows.push(['GERAL', 'Nota Final', results.total]);
-    rows.push(['GERAL', 'Quadrante Matriz', results.matrix.quadrantName, `P:${results.matrix.x} R:${results.matrix.y}`]);
-    rows.push(['GERAL', 'Consistência', results.consistency.status, results.consistency.message]);
-
-    // 2. Roles
-    Object.entries(roles).forEach(([role, data]) => {
-        const roleData = data as RoleResult;
-        rows.push(['PAPEL', role, roleData.score, `Horizontes: H0=${roleData.horizons[0]} H1=${roleData.horizons[1]} H2=${roleData.horizons[2]} H3=${roleData.horizons[3]} H4=${roleData.horizons[4]}`]);
-    });
-
-    // 3. Blocks
-    Object.entries(blocks).forEach(([block, data]) => {
-        const blockData = data as BlockResult;
-        rows.push(['BLOCO', block, blockData.score, `Horizonte Predominante: H${blockData.horizon}`]);
-    });
-
-    // 4. Categories
-    Object.entries(categories).forEach(([cat, score]) => {
-        rows.push(['CATEGORIA', cat, score]);
-    });
-    
-    // New: Category Consistency Details
-    const details = consistency.categoryDetails || ({} as Record<string, CategoryValidation>);
-    (Object.entries(details) as [string, CategoryValidation][]).forEach(([cat, data]) => {
-         rows.push(['CONSISTENCIA_CATEGORIA', cat, data.status, `Variação: ${data.spread}`]);
-    });
-
-    // 5. Horizons
-    Object.entries(horizons).forEach(([h, score]) => {
-        rows.push(['HORIZONTE', `H${h}`, score]);
-    });
-
-    // 6. Qualitative Questions (Text Answers)
-    if (!profile.is360) {
-        descriptiveQuestions.forEach(q => {
-            rows.push(['REFLEXAO', q.category, textAnswers[q.id] || 'Não respondido', q.text]);
-        });
-    }
-
-    // 7. Dilemmas (Checks)
-    if (!profile.is360) {
-        dilemmas.forEach(d => {
-            const score = answers[d.id];
-            const selectedOption = d.options.find(o => o.value === score);
-            rows.push([
-                'DILEMA', 
-                d.title, 
-                score, 
-                `Cenário: ${d.scenario} | Escolha: ${selectedOption?.text || ''}`
-            ]);
-            if (score === 1 && d.lowScoreRecommendation) {
-                rows.push(['RECOMENDACAO', d.title, 'BAIXA MATURIDADE', d.lowScoreRecommendation]);
-            }
-        });
-    }
-
-    // 8. Alerts
-    roleValidation.alerts.forEach(alert => {
-        rows.push(['ALERTA', 'Validação Papel', alert]);
-    });
-    results.consistency.internalInconsistencies.forEach(inc => {
-        rows.push(['ALERTA', 'Consistência Interna', inc]);
-    });
-
-    // Generate CSV Content
-    const csvContent = "data:text/csv;charset=utf-8," 
-        + rows.map(e => e.map(escapeCsv).join(",")).join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Resultados_${profile.name.replace(/\s+/g, '_')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Resultado_Completo_${profile.name.replace(/\s+/g, '_')}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
   };
 
   return (
     <div className={`w-full max-w-[1200px] mx-auto px-4 md:px-6 py-8 animate-fade-in space-y-12 ${printMode ? 'text-gray-900' : 'text-white'}`}>
       
+      {/* Email Status Indicator (Overlay or Banner) */}
+      {emailStatus === 'sending' && (
+          <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col items-center justify-center text-white backdrop-blur-sm">
+              <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary mb-4"></div>
+              <h2 className="text-xl font-bold">Enviando resultados por e-mail...</h2>
+              <p className="text-sm text-gray-400 mt-2">Um resumo será enviado para rodrigo@pontosfortes.com.br</p>
+          </div>
+      )}
+      {emailStatus === 'sent' && (
+           <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 animate-bounce-slow">
+              <span className="material-symbols-outlined">check_circle</span>
+              Resumo enviado com sucesso!
+           </div>
+      )}
+      {emailStatus === 'error' && (
+           <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2">
+              <span className="material-symbols-outlined">error</span>
+              Erro ao enviar email. Tente novamente mais tarde.
+           </div>
+      )}
+
       {/* Wrapper ref for PDF generation */}
       <div ref={printRef} className={`space-y-12 p-4 sm:p-8 ${styles.bgMain} transition-colors duration-300`}>
 
@@ -789,11 +815,11 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, answers, dile
             )}
         </button>
         <button
-            onClick={handleDownloadCSV}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all"
+            onClick={handleDownloadJSON}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-accent-purple hover:bg-purple-700 text-white font-bold rounded-lg transition-all"
         >
-            <span className="material-symbols-outlined">table_view</span>
-            Baixar CSV (Excel)
+            <span className="material-symbols-outlined">data_object</span>
+            Baixar JSON (Dados)
         </button>
         <button
             onClick={onRestart}
