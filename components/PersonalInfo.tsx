@@ -48,7 +48,7 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
   };
 
   return (
-    <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start animate-fade-in">
+    <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start animate-fade-in pb-12">
       {/* Left Column: Form Section */}
       <div className="lg:col-span-7 flex flex-col gap-8 order-2 lg:order-1">
         
@@ -63,42 +63,77 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
           </div>
         </div>
 
-        {/* Header Text */}
-        <div className="space-y-2">
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
-            {is360 ? 'Avaliação 360º' : 'Informações Profissionais'}
-          </h1>
-          <p className="text-lg text-slate-400 leading-relaxed">
-            {is360 
-                ? 'Você está prestes a avaliar outro líder. Seus dados são opcionais para garantir confidencialidade.'
-                : 'Preencha seus dados para calibrarmos a análise de liderança de acordo com seu contexto atual.'
-            }
-          </p>
+        {/* INSTRUCTIONS BLOCK (BEFORE STARTING) */}
+        <div className="bg-surface-dark border border-gray-700 rounded-xl p-6 md:p-8 space-y-6 shadow-lg">
+            <div className="space-y-4">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                    Antes de começar
+                </h2>
+                <p className="text-slate-300 leading-relaxed">
+                    Este assessment foi desenhado para capturar suas respostas mais naturais e instintivas.
+                    Não existe resposta “certa” ou “errada” — existe apenas o que você faz de verdade no dia a dia da liderança.
+                </p>
+                
+                <div className="bg-surface-darker rounded-lg p-5 border border-gray-800">
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Instruções essenciais</h3>
+                    <ul className="space-y-2 text-sm text-slate-400">
+                        <li className="flex items-start gap-2">
+                            <span className="material-symbols-outlined text-primary text-lg">check</span>
+                            Responda pensando no seu comportamento real, não no ideal.
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="material-symbols-outlined text-primary text-lg">timer</span>
+                            Algumas perguntas têm tempo limitado de resposta.
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="material-symbols-outlined text-primary text-lg">schedule_send</span>
+                            Se não responder a tempo, o sistema seguirá automaticamente.
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="material-symbols-outlined text-primary text-lg">favorite</span>
+                            Confie na primeira resposta — ela é a mais valiosa.
+                        </li>
+                    </ul>
+                </div>
+
+                <div className="flex items-start gap-3 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                    <span className="material-symbols-outlined text-yellow-500">warning</span>
+                    <p className="text-sm text-yellow-200">
+                        <strong>Este não é um teste de conhecimento.</strong><br/>
+                        É um diagnóstico de maturidade de liderança.
+                    </p>
+                </div>
+            </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-          
-          {/* 360 Toggle Button (Moved to Top) */}
-          <div className="flex justify-center md:justify-start">
+        {/* 360 Toggle Section */}
+        <div className="border-t border-gray-800 pt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                 <div>
+                    <h3 className="text-lg font-bold text-white">Avaliação 360° <span className="text-sm font-normal text-slate-500">(opcional)</span></h3>
+                    <p className="text-sm text-slate-400">Você pode usar este mesmo instrumento para avaliar outro líder.</p>
+                 </div>
                  <button
                     type="button"
                     onClick={toggle360}
-                    className={`w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-lg border-2 transition-all font-bold ${is360 ? 'bg-purple-600 border-purple-600 text-white' : 'border-purple-600 text-purple-400 hover:bg-purple-600/10'}`}
+                    className={`flex items-center justify-center gap-2 px-6 py-3 rounded-lg border-2 transition-all text-sm font-bold shadow-lg ${
+                      is360 
+                        ? 'bg-purple-600 border-purple-600 text-white shadow-purple-500/20' 
+                        : 'bg-surface-dark border-purple-500 text-purple-400 hover:bg-purple-500 hover:text-white'
+                    }`}
                  >
-                    <span className="material-symbols-outlined">360</span>
-                    {is360 ? 'Modo Avaliação 360º Ativo' : 'Ativar Avaliação 360º (Avaliar outro líder)'}
+                    <span className="material-symbols-outlined text-lg">360</span>
+                    {is360 ? 'Modo 360º Ativo' : 'Ativar Avaliação 360º'}
                  </button>
-          </div>
-
-          {/* 360 Target Name Field */}
-          {is360 && (
-              <div className="space-y-2 p-4 border border-primary/50 bg-primary/5 rounded-lg animate-fade-in">
+            </div>
+            
+            {is360 && (
+              <div className="space-y-2 p-4 border border-purple-500/30 bg-purple-500/10 rounded-lg animate-fade-in">
                 <label htmlFor="targetName" className="block text-sm font-bold text-white">
                   Nome do Líder Avaliado
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-primary">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-400">
                     <span className="material-symbols-outlined">person_search</span>
                   </div>
                   <input
@@ -107,13 +142,27 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
                     required={is360}
                     value={targetLeaderName}
                     onChange={(e) => setTargetLeaderName(e.target.value)}
-                    className="block w-full pl-10 pr-4 py-3 bg-surface-dark border border-gray-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-white placeholder-slate-500 transition-shadow sm:text-sm"
+                    className="block w-full pl-10 pr-4 py-3 bg-surface-dark border border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-slate-500 transition-shadow sm:text-sm"
                     placeholder="Quem você está avaliando?"
                   />
                 </div>
               </div>
-          )}
+            )}
+        </div>
 
+        {/* Form Header */}
+        <div className="space-y-2 border-t border-gray-800 pt-6">
+          <h2 className="text-2xl font-bold text-white">
+             Informações profissionais
+          </h2>
+          <p className="text-base text-slate-400">
+             Essas informações ajudam a calibrar a análise de acordo com seu contexto atual de liderança.
+          </p>
+        </div>
+
+        {/* Form Inputs */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+          
           <div className={`grid grid-cols-1 gap-6 ${is360 ? 'opacity-70 transition-opacity' : ''}`}>
             <div className="space-y-2">
               <label htmlFor="fullname" className="block text-sm font-medium text-slate-300">
@@ -224,26 +273,26 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
             {!is360 && (
                 <>
                 <label className="block text-sm font-medium text-slate-300">
-                Qual seu nível de liderança atual?
+                  Qual é o seu nível de liderança atual?
                 </label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                 {[
                     { 
                     val: LeadershipLevel.L1, 
-                    label: 'Primeira liderança (L1)', 
-                    sub: 'Lidera colaboradores individuais. Foco em operação, rotina e desenvolvimento técnico do time.', 
+                    label: 'L1 — Primeira liderança', 
+                    sub: 'Lidera colaboradores individuais. Foco em operação, rotina e desenvolvimento do time.', 
                     icon: 'person' 
                     },
                     { 
                     val: LeadershipLevel.L2, 
-                    label: 'Liderança intermediária (L2)', 
-                    sub: 'Lidera outros líderes. Foco em integração de áreas, tática e desenvolvimento de sucessores.', 
+                    label: 'L2 — Liderança intermediária', 
+                    sub: 'Lidera outros líderes. Foco em integração de áreas, visão tática e sucessão.', 
                     icon: 'groups' 
                     },
                     { 
                     val: LeadershipLevel.L3, 
-                    label: 'Alta liderança (L3)', 
-                    sub: 'Lidera a organização. Foco em estratégia, cultura, visão de longo prazo e sustentabilidade do negócio.', 
+                    label: 'L3 — Alta liderança', 
+                    sub: 'Lidera a organização. Foco em estratégia, cultura, visão de longo prazo e sustentabilidade.', 
                     icon: 'domain' 
                     },
                 ].map((opt) => (
@@ -256,16 +305,16 @@ const PersonalInfo: React.FC<Props> = ({ onComplete }) => {
                         onChange={() => setLevel(opt.val)}
                         className="peer sr-only"
                     />
-                    <div className="h-full p-4 rounded-xl border-2 border-gray-700 bg-surface-dark hover:border-primary/50 peer-checked:border-primary peer-checked:bg-primary/10 transition-all flex flex-col gap-3">
-                        <div className="size-10 rounded-full bg-surface-darker flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                        <span className="material-symbols-outlined">{opt.icon}</span>
+                    <div className="h-full p-4 rounded-xl border-2 border-gray-700 bg-surface-dark hover:border-primary/50 peer-checked:border-primary peer-checked:bg-primary/10 transition-all flex items-start gap-4">
+                        <div className="size-10 shrink-0 rounded-full bg-surface-darker flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                             <span className="material-symbols-outlined">{opt.icon}</span>
                         </div>
-                        <div>
-                        <span className="block font-bold text-white text-sm mb-1">{opt.label}</span>
-                        <span className="text-xs text-slate-400 leading-tight block">{opt.sub}</span>
+                        <div className="flex-grow">
+                            <span className="block font-bold text-white text-base mb-1">{opt.label}</span>
+                            <span className="text-sm text-slate-400 leading-relaxed block">{opt.sub}</span>
                         </div>
-                        <div className="absolute top-4 right-4 text-primary opacity-0 peer-checked:opacity-100 transition-opacity">
-                        <span className="material-symbols-outlined filled">check_circle</span>
+                        <div className="text-primary opacity-0 peer-checked:opacity-100 transition-opacity">
+                             <span className="material-symbols-outlined filled">check_circle</span>
                         </div>
                     </div>
                     </label>

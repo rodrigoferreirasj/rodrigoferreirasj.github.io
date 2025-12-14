@@ -12,7 +12,8 @@ interface Props {
 
 type Phase = 'questions' | 'dilemmas' | 'descriptive';
 
-const TIME_LIMIT_SECONDS = 10;
+const QUESTION_TIME = 10;
+const DILEMMA_TIME = 30;
 
 const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, is360 = false }) => {
   const [phase, setPhase] = useState<Phase>('questions');
@@ -35,7 +36,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   // --- TIME & OMISSION LOGIC ---
-  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT_SECONDS);
+  const [timeLeft, setTimeLeft] = useState(QUESTION_TIME);
   const [totalTimeTaken, setTotalTimeTaken] = useState(0); // Accumulator for total time
   const [consecutiveOmissions, setConsecutiveOmissions] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -54,10 +55,13 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
   const currentDilemma = shuffledDilemmas[currentDIndex];
   const currentDescriptive = shuffledDescriptive[currentDescIndex];
 
+  // Helper to get current max time based on phase
+  const currentLimit = phase === 'dilemmas' ? DILEMMA_TIME : QUESTION_TIME;
+
   // EFFECT 1: RESET TIMER ON QUESTION CHANGE
   useEffect(() => {
-      // Whenever the index or phase changes, reset the clock to 10s
-      setTimeLeft(TIME_LIMIT_SECONDS);
+      // Whenever the index or phase changes, reset the clock based on phase
+      setTimeLeft(phase === 'dilemmas' ? DILEMMA_TIME : QUESTION_TIME);
   }, [currentQIndex, currentDIndex, phase]);
 
   // EFFECT 2: COUNTDOWN LOGIC (TICK)
@@ -94,8 +98,8 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
       const id = phase === 'questions' ? currentQuestion?.id : currentDilemma?.id;
       if (!id) return;
 
-      // Add full duration to total time (since user used all 10s)
-      setTotalTimeTaken(prev => prev + TIME_LIMIT_SECONDS);
+      // Add full duration to total time (since user used all available time)
+      setTotalTimeTaken(prev => prev + currentLimit);
 
       // Register Omission (null)
       const newAnswers = { ...answers, [id]: null };
@@ -136,8 +140,8 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
     // Reset Omissions count on valid answer
     setConsecutiveOmissions(0);
 
-    // Track time spent (10 - timeLeft)
-    const timeSpent = TIME_LIMIT_SECONDS - timeLeft;
+    // Track time spent (Max - Left)
+    const timeSpent = QUESTION_TIME - timeLeft;
     setTotalTimeTaken(prev => prev + timeSpent);
 
     const newAnswers = { ...answers, [currentQuestion.id]: score };
@@ -156,7 +160,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
     setConsecutiveOmissions(0);
 
     // Track time spent
-    const timeSpent = TIME_LIMIT_SECONDS - timeLeft;
+    const timeSpent = DILEMMA_TIME - timeLeft;
     setTotalTimeTaken(prev => prev + timeSpent);
     
     const newAnswers = { ...answers, [currentDilemma.id]: score };
@@ -337,7 +341,7 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
              <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden opacity-50">
                  <div 
                     className={`h-full transition-all duration-1000 ease-linear ${timeLeft <= 3 ? 'bg-red-500' : 'bg-gray-400'}`}
-                    style={{ width: `${(timeLeft / TIME_LIMIT_SECONDS) * 100}%` }}
+                    style={{ width: `${(timeLeft / currentLimit) * 100}%` }}
                  ></div>
              </div>
         )}

@@ -3,6 +3,7 @@ import Welcome from './components/Welcome';
 import PersonalInfo from './components/PersonalInfo';
 import Assessment from './components/Assessment';
 import Results from './components/Results';
+import HelpModal from './components/HelpModal';
 import { LeadershipLevel, UserProfile, Answers, Question, TextAnswers } from './types';
 import { questions as allQuestions } from './data/questions';
 import { questions360 } from './data/questions360';
@@ -35,6 +36,9 @@ const App: React.FC = () => {
 
   // Store total time taken for the assessment
   const [totalTime, setTotalTime] = useState<number>(0);
+
+  // Help Modal State
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // Effects to save state changes
   useEffect(() => {
@@ -106,6 +110,9 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen font-sans bg-background-dark text-white selection:bg-primary selection:text-white">
+      {/* Help Modal */}
+      <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
       {/* Top Navigation */}
       <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg-surface-darker/80 backdrop-blur-md">
         <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto h-16 flex items-center justify-between">
@@ -127,7 +134,10 @@ const App: React.FC = () => {
                  </div>
              )}
             <div className="h-8 w-[1px] bg-gray-700 hidden sm:block"></div>
-            <button className="flex items-center justify-center px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors">
+            <button 
+              onClick={() => setIsHelpOpen(true)}
+              className="flex items-center justify-center px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+            >
               Ajuda
             </button>
           </div>
