@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,23 +8,75 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-    <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@18.3.1",
-        "react/": "https://esm.sh/react@18.3.1/",
-        "react-dom": "https://esm.sh/react-dom@18.3.1",
-        "react-dom/": "https://esm.sh/react-dom@18.3.1/",
-        "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-        "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom",
-        "html2canvas": "https://esm.sh/html2canvas@1.4.1",
-        "jspdf": "https://esm.sh/jspdf@2.5.1",
-        "@emailjs/browser": "https://esm.sh/@emailjs/browser@4.4.1"
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              background: {
+                light: '#f6f6f8',
+                dark: '#101322',
+              },
+              surface: {
+                light: '#ffffff',
+                dark: '#1e2336',
+                darker: '#15192b'
+              },
+              primary: {
+                DEFAULT: '#1337ec',
+                hover: '#0f2cb8',
+              },
+              accent: {
+                green: '#0bda65',
+                yellow: '#f59e0b',
+                purple: '#8b5cf6'
+              }
+            }
+          },
+        },
       }
-    }
     </script>
-  </head>
-  <body>
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #101322; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #232948; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #1337ec; 
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/": "https://esm.sh/react@18.3.1/",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom",
+    "html2canvas": "https://esm.sh/html2canvas@1.4.1",
+    "jspdf": "https://esm.sh/jspdf@2.5.1",
+    "@emailjs/browser": "https://esm.sh/@emailjs/browser@4.4.1"
+  }
+}
+</script>
+</head>
+  <body class="bg-background-dark text-white antialiased min-h-screen">
     <div id="root"></div>
   </body>
 </html>
