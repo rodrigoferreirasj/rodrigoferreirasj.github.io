@@ -11,7 +11,7 @@ const Welcome: React.FC<Props> = ({ onStart }) => {
         <div className="w-full mb-8 flex flex-col gap-2">
             <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-primary">Abertura • Passo 0 de 4</span>
-                <span className="text-xs font-medium text-slate-400">Tempo estimado: ~1 hora</span>
+                <span className="text-xs font-medium text-slate-400">Tempo estimado: ~1h 40m</span>
             </div>
             <div className="h-1 w-full rounded-full bg-surface-dark">
                 <div className="h-1 w-[5%] rounded-full bg-primary shadow-[0_0_10px_rgba(19,55,236,0.5)]"></div>

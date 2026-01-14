@@ -59,6 +59,98 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #1337ec; 
       }
+
+      /* PDF Export Overrides - ATIVADO PELA CLASSE .pdf-export-mode */
+      .pdf-export-mode {
+        background-color: #ffffff !important;
+        color: #111827 !important;
+        height: auto !important;
+        overflow: visible !important;
+        width: 100% !important;
+        padding: 40px !important;
+      }
+      
+      .pdf-export-mode .bg-background-dark {
+        background-color: #ffffff !important;
+      }
+
+      .pdf-export-mode .bg-surface-dark {
+        background-color: #ffffff !important;
+        border: 1px solid #e5e7eb !important;
+        box-shadow: none !important;
+        color: #111827 !important;
+      }
+
+      .pdf-export-mode .bg-surface-darker,
+      .pdf-export-mode .bg-surface-darker\/50,
+      .pdf-export-mode .bg-white\/5,
+      .pdf-export-mode .bg-white\/\[0.03\],
+      .pdf-export-mode .bg-black\/20 {
+        background-color: #f9fafb !important;
+        border-color: #e5e7eb !important;
+      }
+
+      /* Item 1: Fix para o texto de consistência e outros textos brancos/opacos */
+      .pdf-export-mode .text-white, 
+      .pdf-export-mode .text-white\/80,
+      .pdf-export-mode .text-white\/90,
+      .pdf-export-mode .text-slate-200,
+      .pdf-export-mode .text-slate-300,
+      .pdf-export-mode p,
+      .pdf-export-mode h1, .pdf-export-mode h2, .pdf-export-mode h3, .pdf-export-mode h4 {
+        color: #111827 !important;
+        fill: #111827 !important;
+        opacity: 1 !important;
+      }
+
+      .pdf-export-mode .text-slate-400,
+      .pdf-export-mode .text-slate-500,
+      .pdf-export-mode .text-slate-600 {
+        color: #4b5563 !important;
+      }
+
+      .pdf-export-mode .border-white\/5,
+      .pdf-export-mode .border-white\/10,
+      .pdf-export-mode .border-gray-800,
+      .pdf-export-mode .border-gray-700 {
+        border-color: #e5e7eb !important;
+      }
+
+      /* Gráficos Recharts no PDF */
+      .pdf-export-mode .recharts-cartesian-grid-line {
+        stroke: #e5e7eb !important;
+      }
+      
+      /* Item 2: Fix agressivo para rótulos de barras e textos internos de gráficos SVG */
+      .pdf-export-mode svg text,
+      .pdf-export-mode svg text tspan,
+      .pdf-export-mode .recharts-text, 
+      .pdf-export-mode .recharts-label-list text,
+      .pdf-export-mode .recharts-label text,
+      .pdf-export-mode .recharts-cartesian-axis-tick-value,
+      .pdf-export-mode .recharts-legend-item-text {
+        fill: #000000 !important;
+        color: #000000 !important;
+        stroke: none !important;
+        font-weight: 800 !important;
+        opacity: 1 !important;
+        fill-opacity: 1 !important;
+      }
+      
+      /* Item 3: Fix para a Área Ideal no gráfico de maturidade temporal */
+      .pdf-export-mode path.recharts-area-area,
+      .pdf-export-mode .recharts-area .recharts-area-area {
+        fill: #d1d5db !important;
+        fill-opacity: 0.6 !important;
+        stroke: #9ca3af !important;
+        stroke-width: 1px !important;
+      }
+      
+      /* Ocultar elementos desnecessários no PDF */
+      .pdf-export-mode .print\:hidden,
+      .pdf-export-mode .no-pdf {
+        display: none !important;
+      }
     </style>
   <script type="importmap">
 {

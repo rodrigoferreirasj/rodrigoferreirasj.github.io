@@ -63,8 +63,8 @@ const HelpModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 </h3>
                 <p>Algumas perguntas possuem tempo máximo de resposta para capturar sua reação instintiva:</p>
                 <ul className="list-disc list-inside space-y-1 ml-2 text-slate-400">
-                    <li><strong>Perguntas de escala:</strong> 10 segundos</li>
-                    <li><strong>Perguntas de cenário/dilema:</strong> tempo maior para leitura e escolha</li>
+                    <li><strong>Perguntas de escala:</strong> 20 segundos</li>
+                    <li><strong>Perguntas de cenário/dilema:</strong> 40 segundos</li>
                 </ul>
                 <p className="mt-2 text-yellow-500/80 italic">Se três perguntas seguidas não forem respondidas, o sistema pausa automaticamente para verificar se você ainda está presente.</p>
             </section>

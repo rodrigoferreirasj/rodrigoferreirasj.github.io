@@ -23,6 +23,9 @@ export interface Question {
   categories?: string[];
   roles?: string[];
   horizons?: HorizonLevel[];
+  // Gallup Fields
+  needs: string[];
+  skills: string[];
 }
 
 export interface DilemmaOption {
@@ -98,6 +101,24 @@ export interface OmissionAnalysis {
     interpretation: string; // Qualitative text
 }
 
+export interface SpeedAnalysis {
+  instinctive: number; // < 30% do tempo
+  natural: number;     // 30% - 75% do tempo
+  reflexive: number;   // > 75% do tempo
+}
+
+export interface BehavioralConsistency {
+  score: number; // 0-100
+  status: 'Alta' | 'Moderada' | 'Baixa';
+  message: string;
+  details: {
+    item: string;
+    scaleScore: number;
+    scenarioScore: number;
+    diff: number;
+  }[];
+}
+
 export interface ConsistencyResult {
   stdDev: number;
   status: 'Consistente' | 'Balanceado' | 'Desbalanceado' | 'Fragmentado' | 'Contraditório';
@@ -110,15 +131,25 @@ export interface RoleValidation {
   alerts: string[];
 }
 
+export interface GallupResult {
+  score: number;
+  horizon: number;
+}
+
 export interface ScoreResult {
   total: number; // 0-100
   matrix: MatrixResult;
   roles: Record<string, RoleResult>;
   horizons: Record<number, number>; // H0-H4 averages
   consistency: ConsistencyResult;
+  behavioralConsistency: BehavioralConsistency; // New field for Scenario vs Scale comparison
   roleValidation: RoleValidation; // Validation from dilemmas
   predominantHorizon: number; // Color coding
   blocks: Record<string, BlockResult>; // Changed to store score and horizon
-  categories: Record<string, number>;
+  categories: Record<string, GallupResult>; // Updated to hold score and horizon
   omissionAnalysis: OmissionAnalysis; // New Field for Time/Pressure analysis
+  speedAnalysis: SpeedAnalysis; // New Field for ICD
+  // New Gallup Results
+  needs: Record<string, GallupResult>;
+  skills: Record<string, GallupResult>;
 }

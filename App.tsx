@@ -4,183 +4,228 @@ import PersonalInfo from './components/PersonalInfo';
 import Assessment from './components/Assessment';
 import Results from './components/Results';
 import HelpModal from './components/HelpModal';
-import { LeadershipLevel, UserProfile, Answers, Question, TextAnswers } from './types';
+import Login from './components/Login';
+import { LeadershipLevel, UserProfile, Answers, Question, TextAnswers, SpeedAnalysis, ScoreResult } from './types';
 import { questions as allQuestions } from './data/questions';
-import { questions360 } from './data/questions360';
 import { dilemmas } from './data/dilemmas';
 import { calculateScores } from './services/scoringService';
+import emailjs from '@emailjs/browser';
 
-type Step = 'welcome' | 'info' | 'assessment' | 'results';
+type Step = 'welcome' | 'login' | 'info' | 'assessment' | 'results';
 
 const App: React.FC = () => {
-  // Initialize state from localStorage if available
-  const [step, setStep] = useState<Step>(() => {
-    const saved = localStorage.getItem('app_step');
-    return (saved as Step) || 'welcome';
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [step, setStep] = useState<Step>('welcome');
   
-  const [profile, setProfile] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('app_profile');
-    return saved ? JSON.parse(saved) : null;
-  });
-
-  const [answers, setAnswers] = useState<Answers>(() => {
-    const saved = localStorage.getItem('app_answers');
-    return saved ? JSON.parse(saved) : {};
-  });
-
-  const [textAnswers, setTextAnswers] = useState<TextAnswers>(() => {
-    const saved = localStorage.getItem('app_text_answers');
-    return saved ? JSON.parse(saved) : {};
-  });
-
-  // Store total time taken for the assessment
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [answers, setAnswers] = useState<Answers>({});
+  const [textAnswers, setTextAnswers] = useState<TextAnswers>({});
   const [totalTime, setTotalTime] = useState<number>(0);
-
-  // Help Modal State
+  const [speedAnalysis, setSpeedAnalysis] = useState<SpeedAnalysis>({ 
+    instinctive: 0, 
+    natural: 0, 
+    reflexive: 0 
+  });
+  const [results, setResults] = useState<ScoreResult | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
-  // Effects to save state changes
-  useEffect(() => {
-    localStorage.setItem('app_step', step);
-  }, [step]);
-
-  useEffect(() => {
-    if (profile) localStorage.setItem('app_profile', JSON.stringify(profile));
-    else localStorage.removeItem('app_profile');
-  }, [profile]);
-
-  useEffect(() => {
-    localStorage.setItem('app_answers', JSON.stringify(answers));
-  }, [answers]);
-
-  useEffect(() => {
-    localStorage.setItem('app_text_answers', JSON.stringify(textAnswers));
-  }, [textAnswers]);
-
-  // Logic: Filter questions based on Level OR use 360 Questions
   const filteredQuestions = useMemo(() => {
     if (!profile) return [];
-    
-    if (profile.is360) {
-        return questions360;
-    }
-
-    return allQuestions.filter(q => 
-        q.level === LeadershipLevel.Comum || q.level === profile.level
-    );
+    return allQuestions.filter(q => q.level === LeadershipLevel.Comum || q.level === profile.level);
   }, [profile]);
 
-  const handleStart = () => setStep('info');
+  const sendResultsEmail = async (
+    currentProfile: UserProfile, 
+    currentResults: ScoreResult, 
+    currentAnswers: Answers, 
+    currentTextAnswers: TextAnswers,
+    currentTotalTime: number
+  ) => {
+    const SERVICE_ID = 'service_jmkr2dn'; 
+    const TEMPLATE_ID = 'assessment_template';
+    const PUBLIC_KEY = 'dh8MnuS1CHuhkCk4X';
 
-  const handleInfoComplete = (userProfile: UserProfile) => {
-    setProfile(userProfile);
-    // Clear previous answers if switching users/modes
-    setAnswers({});
-    setTextAnswers({});
-    setTotalTime(0);
-    setStep('assessment');
+    const horizonLabels: Record<number, string> = { 0: 'Imediato', 1: 'Curto Prazo', 2: 'Médio Prazo', 3: 'Longo Prazo', 4: 'Transformador' };
+    const horizonColors: Record<number, string> = { 0: '#4b5563', 1: '#3b82f6', 2: '#10b981', 3: '#8b5cf6', 4: '#eab308' };
+
+    const getMatrixPos = (v: number) => {
+      if (v < 2.5) return (v / 2.5) * 50; 
+      if (v < 4.0) return 50 + ((v - 2.5) / 1.5) * 30; 
+      return 80 + ((v - 4.0) / 1.0) * 20; 
+    };
+
+    const matrixX = getMatrixPos(currentResults.matrix.x);
+    const matrixY = getMatrixPos(currentResults.matrix.y);
+
+    const exportData = {
+      profile: currentProfile,
+      timestamp: new Date().toISOString(),
+      totalTime: currentTotalTime,
+      results: currentResults,
+      processedDatasets: {
+        temporalData: [0, 1, 2, 3, 4].map(h => ({
+          name: `H${h}`,
+          label: horizonLabels[h],
+          leader: currentResults.horizons[h] || 0
+        })),
+        needsData: Object.entries(currentResults.needs).map(([name, res]) => ({ 
+          name, 
+          score: res.score, 
+          horizon: res.horizon, 
+          fill: horizonColors[res.horizon]
+        })),
+        skillsData: Object.entries(currentResults.skills).map(([name, res]) => ({ 
+          name, 
+          score: res.score, 
+          horizon: res.horizon, 
+          fill: horizonColors[res.horizon]
+        })),
+        blocksData: Object.entries(currentResults.blocks).map(([name, res]) => ({
+          name,
+          score: res.score,
+          horizon: res.horizon,
+          fill: horizonColors[res.horizon]
+        })),
+        categoriesData: Object.entries(currentResults.categories).map(([name, res]) => ({
+          name,
+          score: res.score,
+          horizon: res.horizon,
+          fill: horizonColors[res.horizon]
+        })).sort((a, b) => b.score - a.score),
+        matrix: {
+          x: currentResults.matrix.x,
+          y: currentResults.matrix.y,
+          matrixX,
+          matrixY
+        }
+      },
+      textAnswers: currentTextAnswers
+    };
+
+    const summaryBlock = `
+* MATURIDADE GERAL: ${currentResults.total}%
+* STATUS: ${currentResults.consistency.status}
+* CONSISTÊNCIA COMPORTAMENTAL: ${currentResults.behavioralConsistency.status} (${currentResults.behavioralConsistency.score}%)
+* HORIZONTE DOMINANTE: H${currentResults.predominantHorizon}
+* TEMPO TOTAL: ${Math.floor(currentTotalTime / 60)}m ${currentResults.total % 60}s
+* PAPÉIS:
+  - Líder: ${currentResults.roles['Líder']?.score.toFixed(2)}
+  - Gestor: ${currentResults.roles['Gestor']?.score.toFixed(2)}
+  - Estrategista: ${currentResults.roles['Estrategista']?.score.toFixed(2)}
+  - Intraempreendedor: ${currentResults.roles['Intraempreendedor']?.score.toFixed(2)}
+    `.trim();
+
+    const templateParams = {
+      user_origem: 'Radar Liderança 360',
+      user_name: currentProfile.name,
+      user_position: currentProfile.role,
+      user_company: currentProfile.company,
+      user_email: currentProfile.email,
+      user_whatsapp: currentProfile.whatsapp,
+      assessment_name: currentProfile.is360 ? `Avaliação 360 (Alvo: ${currentProfile.targetLeaderName})` : 'Autoavaliação de Liderança',
+      timestamp: new Date().toLocaleString('pt-BR'),
+      assessment_summary_block: summaryBlock,
+      assessment_details_block: JSON.stringify(exportData, null, 2),
+      assessment_tags: `Nível: ${currentProfile.level}, Status: ${currentResults.consistency.status}, Perfil: ${currentProfile.is360 ? '360' : 'Self'}`
+    };
+
+    try {
+      const response = await emailjs.send(
+        SERVICE_ID, 
+        TEMPLATE_ID, 
+        templateParams,
+        PUBLIC_KEY
+      );
+      console.log('E-mail de diagnóstico enviado com sucesso:', response.status, response.text);
+    } catch (error: any) {
+      const errorMsg = error?.text || error?.message || JSON.stringify(error);
+      console.error('Falha crítica no envio do e-mail:', errorMsg);
+    }
   };
 
-  const handleAssessmentComplete = (userAnswers: Answers, userTextAnswers: TextAnswers, timeTaken: number) => {
-    setAnswers(userAnswers);
-    setTextAnswers(userTextAnswers);
-    setTotalTime(timeTaken);
+  const handleAssessmentComplete = (
+    finalAnswers: Answers, 
+    finalTextAnswers: TextAnswers, 
+    finalTime: number, 
+    finalSpeed: SpeedAnalysis
+  ) => {
+    if (!profile) return;
+
+    const calculated = calculateScores(filteredQuestions, dilemmas, finalAnswers, profile.level, finalSpeed);
+    
+    setAnswers(finalAnswers);
+    setTextAnswers(finalTextAnswers);
+    setTotalTime(finalTime);
+    setSpeedAnalysis(finalSpeed);
+    setResults(calculated);
+    
+    sendResultsEmail(profile, calculated, finalAnswers, finalTextAnswers, finalTime);
+    
     setStep('results');
   };
 
   const handleRestart = () => {
-    // Clear State
+    localStorage.clear();
     setProfile(null);
     setAnswers({});
     setTextAnswers({});
-    setTotalTime(0);
+    setResults(null);
     setStep('welcome');
-    // Clear Storage
-    localStorage.removeItem('app_step');
-    localStorage.removeItem('app_profile');
-    localStorage.removeItem('app_answers');
-    localStorage.removeItem('app_text_answers');
+    // Mantenha autenticado se já logou uma vez nesta sessão, para não pedir login de novo no restart
   };
 
-  const scores = useMemo(() => {
-    if (!profile) return null;
-    return calculateScores(filteredQuestions, dilemmas, answers, profile.level);
-  }, [filteredQuestions, answers, profile]);
+  const handleStart = () => {
+    if (isAuthenticated) {
+      setStep('info');
+    } else {
+      setStep('login');
+    }
+  };
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+    setStep('info');
+  };
 
   return (
-    <div className="flex flex-col min-h-screen font-sans bg-background-dark text-white selection:bg-primary selection:text-white">
-      {/* Help Modal */}
+    <div className="flex flex-col min-h-screen font-sans bg-background-dark text-white">
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
-
-      {/* Top Navigation */}
       <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg-surface-darker/80 backdrop-blur-md">
         <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="size-8 flex items-center justify-center text-primary bg-primary/10 rounded-lg">
-              <span className="material-symbols-outlined text-2xl">radar</span>
-            </div>
-            <h2 className="text-white text-lg font-bold tracking-tight">Radar de Liderança 360º</h2>
+            <span className="material-symbols-outlined text-primary text-3xl">radar</span>
+            <h2 className="text-white text-lg font-bold tracking-tight uppercase">Radar Liderança 360</h2>
           </div>
           <div className="flex items-center gap-4">
-             {profile && (
-                 <div className="hidden sm:flex items-center gap-2">
-                    <span className="text-xs text-gray-400">
-                        {profile.is360 ? 'Avaliando:' : 'Líder:'}
-                    </span>
-                    <span className="text-sm font-bold">
-                        {profile.is360 ? profile.targetLeaderName : profile.name}
-                    </span>
-                 </div>
-             )}
-            <div className="h-8 w-[1px] bg-gray-700 hidden sm:block"></div>
-            <button 
-              onClick={() => setIsHelpOpen(true)}
-              className="flex items-center justify-center px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors"
-            >
-              Ajuda
-            </button>
+            <button onClick={() => setIsHelpOpen(true)} className="text-slate-400 hover:text-white text-sm font-bold">AJUDA</button>
           </div>
         </div>
       </header>
-
-      {/* Main Content */}
-      <main className="flex-grow flex flex-col items-center justify-start relative">
+      <main className="flex-grow flex flex-col items-center justify-start p-4">
         {step === 'welcome' && <Welcome onStart={handleStart} />}
-        {step === 'info' && <PersonalInfo onComplete={handleInfoComplete} />}
-        {step === 'assessment' && (
-            <Assessment 
-                questions={filteredQuestions} 
-                dilemmas={dilemmas}
-                onComplete={handleAssessmentComplete}
-                onBack={() => setStep('info')}
-                is360={profile?.is360}
-            />
+        {step === 'login' && <Login onLoginSuccess={handleLoginSuccess} />}
+        {step === 'info' && <PersonalInfo onComplete={(p) => { setProfile(p); setStep('assessment'); }} onBack={() => setStep('welcome')} />}
+        {step === 'assessment' && profile && (
+          <Assessment 
+            questions={filteredQuestions} 
+            dilemmas={dilemmas} 
+            onComplete={handleAssessmentComplete} 
+            onBack={() => setStep('info')} 
+            is360={profile.is360} 
+          />
         )}
-        {step === 'results' && profile && scores && (
+        {step === 'results' && results && profile && (
             <Results 
-              results={scores} 
-              profile={{
-                  ...profile,
-                  name: profile.is360 ? (profile.targetLeaderName || profile.name) : profile.name // Ensure results show target name in 360
-              }}
+              results={results} 
+              profile={profile} 
               textAnswers={textAnswers} 
-              answers={answers} // Pass raw answers to check dilemmas
-              dilemmas={dilemmas} // Pass dilemmas definition
-              totalTime={totalTime} // Pass total time taken
+              answers={answers} 
+              dilemmas={dilemmas} 
+              totalTime={totalTime} 
               onRestart={handleRestart} 
             />
         )}
       </main>
-
-      {/* Simple Footer */}
-      <footer className="w-full py-6 mt-auto border-t border-gray-800 bg-surface-darker">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-xs text-slate-500">
-            © 2024 Radar de Liderança 360º. Todos os direitos reservados.
-          </p>
-        </div>
-      </footer>
     </div>
   );
 };

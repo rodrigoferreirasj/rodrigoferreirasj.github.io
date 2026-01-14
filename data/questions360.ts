@@ -29,7 +29,10 @@ const create360 = (
     // Multi-tagging
     categories,
     roles,
-    horizons
+    horizons,
+    // Fix: Add missing properties to satisfy Question interface
+    needs: [],
+    skills: []
   };
 };
 
