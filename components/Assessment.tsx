@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Question, Answers, Dilemma, TextAnswers, SpeedAnalysis } from '../types';
+import { Question, Answers, Dilemma, TextAnswers, SpeedAnalysis, DescriptiveQuestion } from '../types';
 import { descriptiveQuestions } from '../data/descriptive';
 
 interface Props {
@@ -200,7 +200,8 @@ const Assessment: React.FC<Props> = ({ questions, dilemmas, onComplete, onBack, 
                     {phase === 'questions' ? 'Competências Críticas' : phase === 'dilemmas' ? 'Dilemas Reais' : 'Evidências Qualitativas'}
                 </span>
                 <h2 className="text-2xl md:text-3xl font-black text-white leading-[1.3] animate-fade-in" key={currentQ?.id}>
-                    {phase === 'dilemmas' ? (currentQ as Dilemma).scenario : currentQ?.text}
+                    {/* Fix: cast currentQ to appropriate types based on phase to satisfy TS compiler */}
+                    {phase === 'dilemmas' ? (currentQ as Dilemma).scenario : (currentQ as Question | DescriptiveQuestion)?.text}
                 </h2>
             </div>
         </div>

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { validateAccessKey } from '../services/authService';
 
@@ -8,22 +7,9 @@ interface Props {
 
 const Login: React.FC<Props> = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
-  const [date, setDate] = useState('');
   const [accessKey, setAccessKey] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '');
-    if (value.length > 8) value = value.slice(0, 8);
-    
-    if (value.length > 4) {
-      value = value.replace(/^(\d\d)(\d\d)(\d{0,4})/, '$1/$2/$3');
-    } else if (value.length > 2) {
-      value = value.replace(/^(\d\d)(\d{0,2})/, '$1/$2');
-    }
-    setDate(value);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,18 +17,18 @@ const Login: React.FC<Props> = ({ onLoginSuccess }) => {
     setIsLoading(true);
 
     // Basic Validation
-    if (!email || date.length !== 10 || !accessKey) {
+    if (!email || !accessKey) {
       setError('Por favor, preencha todos os campos corretamente.');
       setIsLoading(false);
       return;
     }
 
-    const isValid = await validateAccessKey(email, date, accessKey);
+    const isValid = await validateAccessKey(email, accessKey);
 
     if (isValid) {
       onLoginSuccess();
     } else {
-      setError('A chave informada não é válida para os dados fornecidos. Verifique os dados ou entre em contato para suporte.');
+      setError('A chave informada não é válida para este e-mail. Verifique os dados ou entre em contato para suporte.');
     }
     setIsLoading(false);
   };
@@ -60,7 +46,7 @@ const Login: React.FC<Props> = ({ onLoginSuccess }) => {
             </div>
             <h1 className="text-2xl font-bold text-white">Acesso Restrito</h1>
             <p className="text-slate-400 text-center text-sm">
-              Insira seus dados de compra para acessar o Assessment de Liderança.
+              Insira o e-mail cadastrado e sua chave de acesso para iniciar.
             </p>
           </div>
 
@@ -75,22 +61,6 @@ const Login: React.FC<Props> = ({ onLoginSuccess }) => {
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-surface-darker border border-gray-600 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-primary focus:border-primary transition-all placeholder-slate-600"
                     placeholder="exemplo@email.com"
-                    required
-                 />
-               </div>
-             </div>
-
-             <div className="space-y-1">
-               <label className="text-sm font-medium text-slate-300">Data da Compra</label>
-               <div className="relative">
-                 <span className="material-symbols-outlined absolute left-3 top-3 text-slate-500">calendar_month</span>
-                 <input 
-                    type="text" 
-                    value={date}
-                    onChange={handleDateChange}
-                    className="w-full bg-surface-darker border border-gray-600 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-primary focus:border-primary transition-all placeholder-slate-600"
-                    placeholder="DD/MM/AAAA"
-                    maxLength={10}
                     required
                  />
                </div>

@@ -1,3 +1,6 @@
+// Pepper constante definida na especificação
+const PEPPER = "o-r4iFnVs6B8$Qm+Jc@F7^ZL#hD2P!";
+const APP_NAME = "radarlideranca"; // Identificador do app para o hash
 
 // Helper to convert ArrayBuffer to Hex String
 const bufferToHex = (buffer: ArrayBuffer): string => {
@@ -14,46 +17,58 @@ const sha256 = async (message: string): Promise<string> => {
   return bufferToHex(hashBuffer);
 };
 
-// Helper for SHA-512
-const sha512 = async (message: string): Promise<string> => {
+// Helper for HMAC-SHA256
+const hmacSha256 = async (key: string, data: string): Promise<ArrayBuffer> => {
   const encoder = new TextEncoder();
-  const data = encoder.encode(message);
-  const hashBuffer = await window.crypto.subtle.digest('SHA-512', data);
-  return bufferToHex(hashBuffer);
+  const keyData = encoder.encode(key);
+  const msgData = encoder.encode(data);
+
+  const cryptoKey = await window.crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  return await window.crypto.subtle.sign('HMAC', cryptoKey, msgData);
 };
 
-export const validateAccessKey = async (email: string, dateStr: string, providedKey: string): Promise<boolean> => {
+// Helper for Base64URL encoding
+const base64url = (buffer: ArrayBuffer): string => {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+};
+
+export const validateAccessKey = async (email: string, providedKey: string): Promise<boolean> => {
   try {
-    // 1. Transformação da data
-    // Formato esperado: dd/mm/aaaa
-    const [day, month, year] = dateStr.split('/');
+    // 1. Hash do e-mail (SHA-256)
+    const emailHash = await sha256(email.trim().toLowerCase());
     
-    // CRÍTICO: Usar Date.UTC para garantir que o timestamp seja gerado em UTC (00:00:00 Z)
-    // independentemente do fuso horário do navegador do usuário.
-    // Mês em JS é 0-indexed (0 = Janeiro, 7 = Agosto)
-    const utcDate = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 0, 0, 0));
-    
-    // Timestamp em segundos (UNIX)
-    const timestamp = Math.floor(utcDate.getTime() / 1000).toString();
-    
-    // Pegar os últimos 8 dígitos
-    const last8Timestamp = timestamp.slice(-8);
+    // 2. Pegar os primeiros 16 caracteres do hash do e-mail
+    const emailPart = emailHash.substring(0, 16);
 
-    // 2. Hash do e-mail (SHA-256)
-    const emailHash = await sha256(email.trim().toLowerCase()); // Normaliza para minúsculo e remove espaços
-    
-    // Pegar os primeiros 16 caracteres
-    const first16Email = emailHash.substring(0, 16);
+    // 3. Combinar com appName e inverter
+    const combinado = (emailPart + APP_NAME).split('').reverse().join('');
 
-    // 3. Combinação e Inversão
-    const combined = last8Timestamp + first16Email;
-    const inverted = combined.split('').reverse().join('');
+    // 4. Gerar HMAC-SHA256 com o PEPPER
+    const hmacFull = await hmacSha256(PEPPER, combinado);
 
-    // 4. Hash Final (SHA-512)
-    const finalHash = await sha512(inverted);
+    // 5. Truncar para 12 bytes (96 bits)
+    const hmacTruncado = hmacFull.slice(0, 12);
 
-    // Comparação
-    return finalHash === providedKey.trim();
+    // 6. Converter para Base64URL
+    const chaveEsperada = base64url(hmacTruncado);
+
+    // Comparação final
+    return providedKey.trim() === chaveEsperada;
   } catch (error) {
     console.error("Erro na validação da chave:", error);
     return false;
