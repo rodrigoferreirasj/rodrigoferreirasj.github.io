@@ -1,4 +1,3 @@
-
 import { LeadershipLevel, Question } from '../types';
 
 const createQ = (
@@ -114,13 +113,13 @@ export const questions: Question[] = [
   createQ(91, "Estimulo a equipe a sugerir melhorias por meio de rituais ou canais específicos.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Inovação & Melhoria Contínua", "Intraempreendedor", 1, false, ["Esperança", "Confiança"], ["Liderar mudanças", "Desenvolver pessoas"]),
   createQ(92, "Testo pequenas mudanças antes de escalar processos.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Inovação & Melhoria Contínua", "Intraempreendedor", 1, false, ["Esperança"], ["Liderar mudanças"]),
   createQ(93, "Adapto rapidamente métodos de trabalho ao surgimento de novas ferramentas.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Adaptação & Aprendizagem Contínua", "Intraempreendedor", 0, false, ["Esperança", "Estabilidade"], ["Liderar mudanças"]),
-  createQ(94, "Implemento práticas visuais (ex: gestão à vista) para acompanhamento do time.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Execução & Acompanhamento da Performance", "Intraempreendedor", 1, false, ["Estabilidade"], ["Criar accountability"]),
-  createQ(95, "Trato erros como oportunidades de melhorar o sistema, não de culpar pessoas.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Cultura & Valores", "Intraempreendedor", 0, false, ["Compaixão", "Confiança"], ["Liderar mudanças", "Criar accountability"]),
+  createQ(94, "Implemento melhorias sugeridas pela equipe quando fazem sentido.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Inovação & Melhoria Contínua", "Intraempreendedor", 1, false, ["Confiança", "Esperança"], ["Liderar mudanças"]),
+  createQ(95, "Trato erros como oportunidades de melhorar o sistema, não de culpar pessoas.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Adaptação & Aprendizagem Contínua", "Intraempreendedor", 0, false, ["Esperança", "Confiança"], ["Liderar mudanças"]),
   createQ(96, "Incentivo a equipe a trazer problemas acompanhados de possíveis soluções.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Inovação & Melhoria Contínua", "Intraempreendedor", 1, false, ["Esperança", "Confiança"], ["Pensar criticamente"]),
-  createQ(97, "Busco referências externas simples para aprimorar processos.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Aprendizagem Externa & Benchmark", "Intraempreendedor", 2, false, ["Confiança", "Esperança"], ["Construir relacionamentos", "Desenvolver pessoas"]),
-  createQ(98, "Desenvolvo senso de propriedade pela tarefa e pelo processo.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Gestão de Performance", "Intraempreendedor", 1, false, ["Esperança", "Confiança"], ["Desenvolver pessoas"]),
-  createQ(99, "Evito mudanças de procedimento porque quase sempre aumentam o trabalho.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Adaptação & Aprendizagem Contínua", "Intraempreendedor", 0, true, ["Confiança", "Esperança"], ["Criar accountability"]),
-  createQ(100, "Sob pressão, continuo aberto a ajustes e melhorias.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Inovação & Melhoria Contínua", "Intraempreendedor", 0, false, ["Confiança", "Estabilidade"], ["Desenvolver pessoas"]),
+  createQ(97, "Busco referências externas simples para aprimorar processos.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Aprendizagem Externa & Benchmark", "Intraempreendedor", 2, false, ["Esperança"], ["Pensar criticamente"]),
+  createQ(98, "Desenvolvo senso de propriedade pela tarefa e pelo processo.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Inovação & Melhoria Contínua", "Intraempreendedor", 1, false, ["Esperança", "Confiança"], ["Desenvolver pessoas"]),
+  createQ(99, "Evito mudanças de procedimento porque quase sempre aumentam o trabalho.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Adaptação & Aprendizagem Contínua", "Intraempreendedor", 0, true, ["Confiança", "Estabilidade"], ["Liderar mudanças"]),
+  createQ(100, "Sob pressão, continuo aberto a ajustes e melhorias.", "Inovação e Adaptabilidade", LeadershipLevel.L1, "Ambos", "Inovação & Melhoria Contínua", "Intraempreendedor", 1, false, ["Esperança", "Confiança"], ["Liderar mudanças", "Inspirar"]),
 
   // --- L2 (101-150) ---
   createQ(101, "Conduzo sessões regulares de mentoria com líderes sob minha gestão.", "Desenvolvimento de Líderes", LeadershipLevel.L2, "Pessoas", "Feedback & Desenvolvimento Contínuo", "Líder", 1, false, ["Esperança"], ["Desenvolver pessoas"]),
@@ -232,7 +231,7 @@ export const questions: Question[] = [
   createQ(203, "Consigo admitir erros publicamente sem perder meu senso de valor.", "Maturidade Interna", LeadershipLevel.Comum, "Pessoas", "Autoconsciência & Autogestão Emocional", "Líder", 3, false, ["Confiança"], ["Pensar criticamente"]),
   createQ(204, "Tomo decisões considerando não apenas eficiência, mas o tipo de líder que desejo ser.", "Maturidade Interna", LeadershipLevel.Comum, "Ambos", "Tomada de Decisão Ética", "Estrategista", 3, false, ["Confiança", "Esperança"], ["Pensar criticamente"]),
   createQ(205, "Reflito sobre padrões pessoais que podem limitar meu impacto como líder.", "Maturidade Interna", LeadershipLevel.Comum, "Pessoas", "Autoconsciência & Autogestão Emocional", "Líder", 3, false, ["Confiança"], ["Pensar criticamente"]),
-  createQ(206, "Busco feedback com genuíno desejo de evolução, não de validação.", "Maturidade Interna", LeadershipLevel.Comum, "Pessoas", "Feedback & Desenvolvimento Contínuo", "Líder", 2, false, ["Confiança"], ["Desenvolver pessoas"]),
+  createQ(206, "Busco feedback com genuíno desejo de evolução, não de validação.", "Maturidade Interna", LeadershipLevel.Comum, "Pessoas", "Feedback & Desenvolvimento Contíduo", "Líder", 2, false, ["Confiança"], ["Desenvolver pessoas"]),
   createQ(207, "Percebo rapidamente quando estou reagindo de forma automática e consigo pausar.", "Maturidade Interna", LeadershipLevel.Comum, "Pessoas", "Autoconsciência & Autogestão Emocional", "Líder", 2, false, ["Estabilidade"], ["Pensar criticamente"]),
   createQ(208, "Questiono minhas próprias crenças quando percebo que elas podem estar desatualizadas.", "Maturidade Interna", LeadershipLevel.Comum, "Pessoas", "Adaptação & Aprendizagem Contínua", "Intraempreendedor", 3, false, ["Confiança"], ["Pensar criticamente"]),
   createQ(209, "Tomo decisões considerando repercussões em múltiplas pessoas e grupos.", "Maturidade Interna", LeadershipLevel.Comum, "Pessoas", "Tomada de Decisão Complexa", "Estrategista", 3, false, ["Confiança", "Esperança"], ["Pensar criticamente"]),
@@ -246,7 +245,7 @@ export const questions: Question[] = [
   createQ(217, "Reconheço padrões emocionais da equipe e respondo de forma intencional.", "Maturidade Interna", LeadershipLevel.Comum, "Pessoas", "Autoconsciência & Autogestão Emocional", "Líder", 3, false, ["Confiança"], ["Pensar criticamente"]),
   createQ(218, "Sou capaz de mudar de opinião diante de novos dados sem perder autoridade.", "Maturidade Interna", LeadershipLevel.Comum, "Ambos", "Adaptação & Aprendizagem Contínua", "Intraempreendedor", 2, false, ["Confiança"], ["Pensar criticamente"]),
   createQ(219, "Tenho consciência clara das consequências de minhas escolhas de vida e carreira.", "Maturidade Interna", LeadershipLevel.Comum, "Pessoas", "Tomada de Decisão Ética", "Estrategista", 4, false, ["Esperança"], ["Liderar mudanças"]),
-  createQ(220, "Sinto propósito no impacto que gero e busco alinhamento com ele.", "Maturidade Interna", LeadershipLevel.Comum, "Pessoas", "Cultura & Valores", "Líder", 4, false, ["Esperança"], ["Pensar criticamente"]),
+  createQ(220, "Sinto propósito no impacto que gera e busco alinhamento com ele.", "Maturidade Interna", LeadershipLevel.Comum, "Pessoas", "Cultura & Valores", "Líder", 4, false, ["Esperança"], ["Pensar criticamente"]),
 
   // --- Complexidade (221-230) ---
   createQ(221, "Tomo decisões considerando consequências de 2ª e 3ª ordem.", "Complexidade, Ambiguidade e Pensamento Sistêmico", LeadershipLevel.Comum, "Resultados", "Tomada de Decisão Complexa", "Estrategista", 3, false, ["Estabilidade"], ["Pensar criticamente"]),
@@ -271,4 +270,13 @@ export const questions: Question[] = [
   createQ(238, "Rejeito comportamentos políticos tóxicos mesmo quando poderiam me favorecer.", "Etica, Integridade e Propósito", LeadershipLevel.Comum, "Pessoas", "Cultura & Valores", "Líder", 4, false, ["Confiança"], ["Criar accountability"]),
   createQ(239, "Considero os valores organizacionais como critério real de decisão.", "Etica, Integridade e Propósito", LeadershipLevel.Comum, "Ambos", "Cultura & Valores", "Líder", 4, false, ["Confiança"], ["Criar accountability"]),
   createQ(240, "Busco coerência entre quem sou como pessoa e quem sou como líder.", "Etica, Integridade e Propósito", LeadershipLevel.Comum, "Pessoas", "Cultura & Valores", "Líder", 4, false, ["Confiança"], ["Pensar criticamente"]),
+
+  // --- Adicionais (Gap "Líder Sem Tempo" 241-247) ---
+  createQ(241, "Defino explicitamente com cada pessoa a partir de quando uma responsabilidade passa a ser totalmente dela.", "Liderança de Pessoas", LeadershipLevel.Comum, "Pessoas", "Delegação & Empowerment", "Líder", 1, false),
+  createQ(242, "Estabeleço critérios claros do que é ‘bom o suficiente’ antes da execução começar.", "Gestão e Execução", LeadershipLevel.Comum, "Resultados", "Gestão de Performance", "Gestor", 1, false),
+  createQ(243, "Defino limites claros de trabalho em andamento para evitar sobrecarga da equipe.", "Gestão e Execução", LeadershipLevel.Comum, "Resultados", "Planejamento & Organização", "Gestor", 1, false),
+  createQ(244, "Ensino critérios de decisão para que a equipe resolva problemas sem depender de mim.", "Liderança de Pessoas", LeadershipLevel.Comum, "Pessoas", "Desenvolvimento & Autonomia", "Líder", 2, false),
+  createQ(245, "Uso conscientemente dados simples para reduzir controle direto sobre a execução.", "Gestão e Execução", LeadershipLevel.Comum, "Resultados", "Execução & Acompanhamento da Performance", "Gestor", 1, false),
+  createQ(246, "Estruturo pequenos ciclos de melhoria que geram ganho real de tempo no médio prazo.", "Inovação e Adaptabilidade", LeadershipLevel.Comum, "Ambos", "Melhoria Contínua", "Intraempreendedor", 2, false),
+  createQ(247, "Reduzi conscientemente decisões que dependem exclusivamente de mim.", "Maturidade Interna", LeadershipLevel.Comum, "Pessoas", "Autoconsciência & Autogestão Emocional", "Líder", 2, false),
 ];

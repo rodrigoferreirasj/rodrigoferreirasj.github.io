@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useMemo } from 'react';
 import { ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Scatter, ZAxis, Cell, ScatterChart, RadarChart, PolarGrid, PolarAngleAxis, Radar, BarChart, Bar, LineChart, Line, LabelList, Legend, Area, ComposedChart } from 'recharts';
 import { ScoreResult, UserProfile, LeadershipLevel, TextAnswers, GallupResult, RoleResult, Question, CategoryValidation } from '../types';
@@ -146,6 +145,96 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart, to
       ideal: ideal[h] || 0
     }));
   }, [horizons, profile.level]);
+
+  // Checklist Calculations
+  const getChecklistScore = (qIds: number[]) => {
+    let sum = 0;
+    let count = 0;
+    qIds.forEach(id => {
+      const val = answers[id];
+      if (val !== undefined && val !== null) {
+        const q = allQuestions.find(q => q.id === id);
+        const normalizedVal = q?.inverted ? 6 - val : val;
+        sum += normalizedVal;
+        count++;
+      }
+    });
+    return count > 0 ? sum / count : 0;
+  };
+
+  const checklistContent = useMemo(() => {
+    const data = [
+      {
+        category: 'Autonomia & Pessoas',
+        items: [
+          { text: 'Onboarding cria autonomia real desde o início', score: getChecklistScore([56]) },
+          { text: 'Sei exatamente o que cada pessoa pode decidir sozinha', score: getChecklistScore([103]) },
+          { text: 'Delego decisões, não só tarefas', score: getChecklistScore([103, 228]) },
+          { text: 'Tenho um mapa claro das capacidades do time', score: getChecklistScore([53]) },
+          { text: 'Existe um marco explícito de transferência de responsabilidade', score: getChecklistScore([241]) },
+        ]
+      },
+      {
+        category: 'Estilo de Liderança',
+        items: [
+          { text: 'Ajusto meu estilo à maturidade da pessoa para a tarefa', score: getChecklistScore([7, 54]) },
+          { text: 'Reduzi controle do “como” e aumentei clareza do “resultado”', score: getChecklistScore([242]) },
+          { text: 'Ensino critérios de decisão, não apenas instruções', score: getChecklistScore([244]) },
+          { text: 'Pratico micro-liderança no fluxo do trabalho', score: getChecklistScore([73]) },
+        ]
+      },
+      {
+        category: 'Trabalho & Sistema',
+        items: [
+          { text: 'Papéis e responsabilidades estão claros', score: getChecklistScore([9, 21]) },
+          { text: 'Existem critérios explícitos de “bom o suficiente”', score: getChecklistScore([242]) },
+          { text: 'Tenho limites claros de WIP (trabalho em andamento)', score: getChecklistScore([243]) },
+          { text: 'Priorizo de verdade (nem tudo é urgente)', score: getChecklistScore([15]) },
+          { text: 'Decidimos conscientemente o que não será feito', score: getChecklistScore([15, 29]) },
+        ]
+      },
+      {
+        category: 'Agenda & Energia do Líder',
+        items: [
+          { text: 'Reduzi a latência das decisões', score: getChecklistScore([16, 122]) },
+          { text: 'Reuniões têm função clara (decidir, alinhar ou encerrar)', score: getChecklistScore([20]) },
+          { text: 'Uso dados simples para soltar controle', score: getChecklistScore([245]) },
+          { text: 'A tecnologia reduz dependência de mim', score: getChecklistScore([93]) },
+          { text: 'Não centralizo emocionalmente o time em mim', score: getChecklistScore([247]) },
+        ]
+      },
+      {
+        category: 'Desenvolvimento que Gera Tempo',
+        items: [
+          { text: 'Feedback é contínuo e leve', score: getChecklistScore([2, 55]) },
+          { text: 'Aplico o mínimo viável que gera alavancagem', score: getChecklistScore([46]) },
+          { text: 'Construo ciclos pequenos e consistentes de ganho de tempo', score: getChecklistScore([246]) },
+        ]
+      }
+    ];
+
+    // Compute Diagnostics
+    const allItems = data.flatMap(d => d.items);
+    const controlGaps = allItems.filter(i => i.score < 3.0);
+    const leverageWins = allItems.filter(i => i.score >= 4.0);
+    const priorityFixes = [...allItems].sort((a, b) => a.score - b.score).slice(0, 3);
+
+    const diagnosticText = `
+      Com base nos seus dados, você está perdendo tempo principalmente em áreas de ${controlGaps.length > 0 ? controlGaps.map(g => g.text).slice(0, 2).join(' e ') : 'baixo impacto imediato'}. 
+      Isso indica um excesso de controle operacional que impede a equipe de assumir o protagonismo necessário. 
+      Por outro lado, sua liderança já gera alavancagem em ${leverageWins.length > 0 ? leverageWins.map(w => w.text).slice(0, 1).join('') : 'alguns rituais básicos'}, demonstrando que existe a base para a autonomia. 
+      Para liberar tempo no curto prazo, foque em ajustar estes 3 itens: ${priorityFixes.map(f => f.text).join(', ')}. 
+      A transição de um líder centralizador para um arquiteto de autonomia requer menos vigilância e mais ensino de critérios de decisão.
+    `.trim();
+
+    return { data, diagnosticText };
+  }, [answers]);
+
+  const getStatusIcon = (score: number) => {
+    if (score >= 4.0) return { char: '✔️', label: 'Resolvido', color: 'text-accent-green' };
+    if (score >= 3.0) return { char: '⚠️', label: 'Parcial', color: 'text-accent-yellow' };
+    return { char: '❌', label: 'Gargalo', color: 'text-red-500' };
+  };
 
   const generateExportData = () => {
     return {
@@ -412,7 +501,7 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart, to
                   </div>
 
                   <div className="relative flex-1 w-full aspect-[21/9] bg-surface-darker/50 border-2 border-gray-800 rounded-[2.5rem] overflow-hidden shadow-inner group">
-                      <div className="absolute inset-0 grid grid-cols-[2.5fr_1.5fr_1fr] grid-rows-[1fr_1.5fr_2.5fr] pointer-events-none">
+                      <div className="absolute inset-0 bg-white/5 grid grid-cols-[2.5fr_1.5fr_1fr] grid-rows-[1fr_1.5fr_2.5fr] pointer-events-none">
                           <div className="bg-green-400/10 border-r border-b border-white/5"></div>
                           <div className="bg-green-600/15 border-r border-b border-white/5"></div>
                           <div className="bg-emerald-500/25 border-b border-white/5"></div>
@@ -749,7 +838,7 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart, to
               </div>
           </div>
 
-          {/* BOX CONSISTÊNCIA COMPORTAMENTAL (NOVO) */}
+          {/* BOX CONSISTÊNCIA COMPORTAMENTAL */}
           <div className="bg-surface-dark border border-white/5 rounded-[3.5rem] p-10 md:p-16 shadow-2xl space-y-12">
               <div className="flex items-center gap-4">
                   <div className={`size-12 rounded-2xl flex items-center justify-center ${behavioralConsistency.status === 'Alta' ? 'bg-accent-green/10 text-accent-green' : behavioralConsistency.status === 'Moderada' ? 'bg-primary/10 text-primary' : 'bg-accent-yellow/10 text-accent-yellow'}`}>
@@ -802,6 +891,51 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart, to
                         ))}
                       </div>
                   </div>
+              </div>
+          </div>
+
+          {/* CHECKLIST — POR QUE ESTOU SEM TEMPO PARA LIDERAR? (NOVO) */}
+          <div className="bg-surface-dark border border-white/5 rounded-[3.5rem] p-10 md:p-16 shadow-2xl space-y-12">
+              <div className="flex items-center gap-4">
+                  <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                      <span className="material-symbols-outlined text-3xl">fact_check</span>
+                  </div>
+                  <h3 className="text-2xl font-black uppercase tracking-tight italic">CHECKLIST — POR QUE ESTOU SEM TEMPO PARA LIDERAR?</h3>
+              </div>
+
+              <div className="bg-white/5 p-4 rounded-2xl mb-8 border border-white/5">
+                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest text-center">
+                  ✔️ = resolvido | ⚠️ = parcial | ❌ = gargalo
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                {checklistContent.data.map((section, idx) => (
+                  <div key={idx} className="space-y-6">
+                    <div className="flex items-center gap-3 border-b border-white/5 pb-2">
+                      <span className="material-symbols-outlined text-primary">circle</span>
+                      <h4 className="text-sm font-black uppercase text-white tracking-widest">{section.category}</h4>
+                    </div>
+                    <ul className="space-y-4">
+                      {section.items.map((item, iIdx) => {
+                        const status = getStatusIcon(item.score);
+                        return (
+                          <li key={iIdx} className="flex items-start gap-3 p-3 bg-white/[0.02] rounded-xl hover:bg-white/5 transition-colors">
+                            <span className={`text-lg leading-none shrink-0 ${status.color}`}>{status.char}</span>
+                            <span className="text-sm text-slate-300 font-medium leading-snug">{item.text}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-12 p-8 bg-primary/5 border border-primary/20 rounded-[2.5rem] space-y-4">
+                <h4 className="text-lg font-black uppercase text-primary tracking-widest italic">Diagnóstico Estratégico</h4>
+                <p className="text-base text-slate-300 leading-relaxed font-medium italic">
+                  "{checklistContent.diagnosticText}"
+                </p>
               </div>
           </div>
 
