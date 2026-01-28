@@ -256,6 +256,7 @@ const Results: React.FC<Props> = ({ results, profile, textAnswers, onRestart, to
           matrixY
         }
       },
+      checklist: checklistContent,
       textAnswers
     };
   };

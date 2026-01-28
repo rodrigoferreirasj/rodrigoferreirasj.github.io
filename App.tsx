@@ -57,6 +57,83 @@ const App: React.FC = () => {
     const matrixX = getMatrixPos(currentResults.matrix.x);
     const matrixY = getMatrixPos(currentResults.matrix.y);
 
+    // Checklist Calculations Mirror
+    const getChecklistScoreInternal = (qIds: number[]) => {
+      let sum = 0;
+      let count = 0;
+      qIds.forEach(id => {
+        const val = currentAnswers[id];
+        if (val !== undefined && val !== null) {
+          const q = allQuestions.find(q => q.id === id);
+          const normalizedVal = q?.inverted ? 6 - val : val;
+          sum += normalizedVal;
+          count++;
+        }
+      });
+      return count > 0 ? sum / count : 0;
+    };
+
+    const checklistData = [
+      {
+        category: 'Autonomia & Pessoas',
+        items: [
+          { text: 'Onboarding cria autonomia real desde o início', score: getChecklistScoreInternal([56]) },
+          { text: 'Sei exatamente o que cada pessoa pode decidir sozinha', score: getChecklistScoreInternal([103]) },
+          { text: 'Delego decisões, não só tarefas', score: getChecklistScoreInternal([103, 228]) },
+          { text: 'Tenho um mapa claro das capacidades do time', score: getChecklistScoreInternal([53]) },
+          { text: 'Existe um marco explícito de transferência de responsabilidade', score: getChecklistScoreInternal([241]) },
+        ]
+      },
+      {
+        category: 'Estilo de Liderança',
+        items: [
+          { text: 'Ajusto meu estilo à maturidade da pessoa para a tarefa', score: getChecklistScoreInternal([7, 54]) },
+          { text: 'Reduzi controle do “como” e aumentei clareza do “resultado”', score: getChecklistScoreInternal([242]) },
+          { text: 'Ensino critérios de decisão, não apenas instruções', score: getChecklistScoreInternal([244]) },
+          { text: 'Pratico micro-liderança no fluxo do trabalho', score: getChecklistScoreInternal([73]) },
+        ]
+      },
+      {
+        category: 'Trabalho & Sistema',
+        items: [
+          { text: 'Papéis e responsabilidades estão claros', score: getChecklistScoreInternal([9, 21]) },
+          { text: 'Existem critérios explícitos de “bom o suficiente”', score: getChecklistScoreInternal([242]) },
+          { text: 'Tenho limites claros de WIP (trabalho em andamento)', score: getChecklistScoreInternal([243]) },
+          { text: 'Priorizo de verdade (nem tudo é urgente)', score: getChecklistScoreInternal([15]) },
+          { text: 'Decidimos conscientemente o que não será feito', score: getChecklistScoreInternal([15, 29]) },
+        ]
+      },
+      {
+        category: 'Agenda & Energia do Líder',
+        items: [
+          { text: 'Reduzi a latência das decisões', score: getChecklistScoreInternal([16, 122]) },
+          { text: 'Reuniões têm função clara (decidir, alinhar ou encerrar)', score: getChecklistScoreInternal([20]) },
+          { text: 'Uso dados simples para soltar controle', score: getChecklistScoreInternal([245]) },
+          { text: 'A tecnologia reduz dependência de mim', score: getChecklistScoreInternal([93]) },
+          { text: 'Não centralizo emocionalmente o time em mim', score: getChecklistScoreInternal([247]) },
+        ]
+      },
+      {
+        category: 'Desenvolvimento que Gera Tempo',
+        items: [
+          { text: 'Feedback é contínuo e leve', score: getChecklistScoreInternal([2, 55]) },
+          { text: 'Aplico o mínimo viável que gera alavancagem', score: getChecklistScoreInternal([46]) },
+          { text: 'Construo ciclos pequenos e consistentes de ganho de tempo', score: getChecklistScoreInternal([246]) },
+        ]
+      }
+    ];
+
+    const allChecklistItems = checklistData.flatMap(d => d.items);
+    const controlGaps = allChecklistItems.filter(i => i.score < 3.0);
+    const leverageWins = allChecklistItems.filter(i => i.score >= 4.0);
+    const priorityFixes = [...allChecklistItems].sort((a, b) => a.score - b.score).slice(0, 3);
+
+    const checklistDiagnosticText = `
+      Com base nos dados, a perda de tempo ocorre principalmente em: ${controlGaps.length > 0 ? controlGaps.map(g => g.text).slice(0, 2).join(' e ') : 'baixo impacto imediato'}. 
+      Gera alavancagem em: ${leverageWins.length > 0 ? leverageWins.map(w => w.text).slice(0, 1).join('') : 'rituais básicos'}. 
+      Prioridades de ajuste: ${priorityFixes.map(f => f.text).join(', ')}.
+    `.trim();
+
     const exportData = {
       profile: currentProfile,
       timestamp: new Date().toISOString(),
@@ -99,6 +176,7 @@ const App: React.FC = () => {
           matrixY
         }
       },
+      checklist: { data: checklistData, diagnosticText: checklistDiagnosticText },
       textAnswers: currentTextAnswers
     };
 
@@ -113,6 +191,9 @@ const App: React.FC = () => {
   - Gestor: ${currentResults.roles['Gestor']?.score.toFixed(2)}
   - Estrategista: ${currentResults.roles['Estrategista']?.score.toFixed(2)}
   - Intraempreendedor: ${currentResults.roles['Intraempreendedor']?.score.toFixed(2)}
+
+* DIAGNÓSTICO LÍDER SEM TEMPO:
+  ${checklistDiagnosticText}
     `.trim();
 
     const templateParams = {
